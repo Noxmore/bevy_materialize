@@ -1,0 +1,13 @@
+[package]
+name = "bevy_materialize"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { version = "0.15", default-features = false, features = [
+	"bevy_asset",
+	"bevy_pbr",
+] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+toml = "0.8"
