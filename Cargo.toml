@@ -5,12 +5,15 @@ edition = "2021"
 
 [dependencies]
 bevy = { version = "0.15", default-features = false, features = [
-	"bevy_asset",
-	"bevy_pbr",
+    "bevy_asset",
+    "bevy_pbr",
+    "png",
 ] }
+ron = { version = "0.8", optional = true }
 serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", optional = true }
 thiserror = "2"
-toml = "0.8"
+toml = { version = "0.8", optional = true }
 
 [dev-dependencies.bevy]
 version = "0.15"
@@ -19,3 +22,8 @@ features = [
     "dynamic_linking",
     "file_watcher",
 ]
+
+[features]
+default = ["toml"]
+json = ["dep:serde_json"]
+toml = ["dep:toml"]

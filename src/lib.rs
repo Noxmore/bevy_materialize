@@ -5,30 +5,36 @@ use std::{
     error::Error,
     fmt::{self},
     io,
+    sync::Arc,
 };
 
 use bevy::{
-    asset::{AssetLoader, AsyncReadExt, LoadContext, UntypedAssetId},
+    asset::{LoadContext, UntypedAssetId},
     prelude::*,
     reflect::{serde::TypedReflectDeserializer, ApplyError, FromType, TypeRegistration, TypeRegistry},
     utils::HashMap,
 };
-use de::GenericMaterialDeserializationProcessor;
-use serde::{de::DeserializeSeed, Deserialize};
+use load::{GenericMaterialLoader, MaterialDeserializer};
+use serde::{de::DeserializeSeed, Deserializer};
 use thiserror::Error;
 
-pub mod de;
+pub mod load;
 pub mod prelude;
 
 #[derive(Default)]
 pub struct MaterializePlugin<D: MaterialDeserializer> {
-    pub deserializer: D,
+    pub deserializer: Arc<D>,
 }
 impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
     fn build(&self, app: &mut App) {
+        let type_registry = app.world().resource::<AppTypeRegistry>().clone();
+
         app.register_type::<GenericMaterial3d>()
             .init_asset::<GenericMaterial>()
-            .init_asset_loader::<GenericMaterialLoader>()
+            .register_asset_loader(GenericMaterialLoader {
+                type_registry,
+                deserializer: self.deserializer.clone(),
+            })
             .register_generic_material::<StandardMaterial>()
             .add_systems(
                 PreUpdate,
@@ -42,7 +48,9 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 }
 impl<D: MaterialDeserializer> MaterializePlugin<D> {
     pub fn new(deserializer: D) -> Self {
-        Self { deserializer }
+        Self {
+            deserializer: Arc::new(deserializer),
+        }
     }
 
     pub fn insert_generic_materials(
@@ -129,6 +137,8 @@ impl Component for GenericMaterial3d {
     }
 }
 
+/// Automatically put on entities when their [GenericMaterial3d] inserts [MeshMaterial3d].
+/// This is required because [MeshMaterial3d] is generic, and as such can't be used in query parameters for generic materials.
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct GenericMaterialApplied;
@@ -172,7 +182,22 @@ impl GenericMaterial {
     }
 }
 
-/// Information about an expected field from [MaterialProperties]. Built-in properties are stored in the [MaterialProperties] namespace, such as [MaterialProperties::RENDER].
+/// User-defined property about a material. These are stored in the [GenericMaterial] namespace, so custom properties should be created via an extension trait.
+///
+/// To be used with [GenericMaterial::property] or [GenericMaterial::get_property].
+///
+/// # Examples
+/// ```
+/// use bevy_materialize::prelude::*;
+///
+/// pub trait MyMaterialPropertiesExt {
+///     const MY_PROPERTY: MaterialProperty<f32> = MaterialProperty::new("my_property", || 5.);
+/// }
+/// impl MyMaterialPropertiesExt for GenericMaterial {}
+///
+/// // Then we can get property like so
+/// let _ = GenericMaterial::MY_PROPERTY;
+/// ```
 pub struct MaterialProperty<T> {
     pub key: Cow<'static, str>,
     pub default: fn() -> T,
@@ -184,36 +209,6 @@ impl<T: PartialReflect> MaterialProperty<T> {
             key: Cow::Borrowed(key),
             default,
         }
-    }
-}
-
-/* #[derive(Resource, Debug, Clone, Default)]
-pub struct MaterialPropertyRegistry {
-    inner: Arc<RwLock<HashMap<String, MaterialPropertyRegistration>>>,
-} */
-
-#[derive(Debug, Clone)]
-pub struct MaterialPropertyRegistration {
-    pub default: fn() -> Box<dyn Reflect>,
-    pub type_registration: &'static TypeRegistration, // TODO should be TypeInfo?
-}
-
-pub trait MaterialDeserializer: Send + Sync + 'static {
-    type Value: GenericValue;
-    type Error: serde::de::Error;
-
-    fn read(&mut self, input: &[u8]) -> Result<Self::Value, Self::Error>;
-}
-
-pub struct TomlMaterialDeserializer;
-impl MaterialDeserializer for TomlMaterialDeserializer {
-    type Value = toml::Value;
-    type Error = toml::de::Error;
-
-    fn read(&mut self, input: &[u8]) -> Result<Self::Value, Self::Error> {
-        use serde::de::Error;
-        let s = str::from_utf8(input).map_err(toml::de::Error::custom)?;
-        toml::from_str(s)
     }
 }
 
@@ -229,7 +224,7 @@ pub trait GenericValue: Send + Sync {
         registry: &TypeRegistry,
     ) -> Result<Box<dyn PartialReflect>, Box<dyn Error + Send + Sync>>;
 }
-impl<T: serde::de::Deserializer<'static, Error: Send + Sync> + Clone + Send + Sync + 'static> GenericValue for T {
+impl<T: Deserializer<'static, Error: Send + Sync> + Clone + Send + Sync + 'static> GenericValue for T {
     fn generic_deserialize(
         &self,
         registration: &TypeRegistration,
@@ -262,98 +257,6 @@ pub enum GenericMaterialError {
 
     #[error("in field {0} - {1}")]
     InField(String, Box<Self>),
-}
-
-pub struct GenericMaterialLoader {
-    pub type_registry: AppTypeRegistry,
-}
-impl FromWorld for GenericMaterialLoader {
-    fn from_world(world: &mut World) -> Self {
-        Self {
-            type_registry: world.resource::<AppTypeRegistry>().clone(),
-        }
-    }
-}
-impl AssetLoader for GenericMaterialLoader {
-    type Asset = GenericMaterial;
-    type Settings = ();
-    type Error = GenericMaterialError;
-
-    fn load(
-        &self,
-        reader: &mut dyn bevy::asset::io::Reader,
-        _settings: &Self::Settings,
-        load_context: &mut LoadContext,
-    ) -> impl bevy::utils::ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
-        Box::pin(async {
-            #[derive(Deserialize)]
-            struct ParsedGenericMaterial {
-                material: toml::Table,
-                properties: toml::Table,
-            }
-
-            let mut input_string = String::new();
-            reader.read_to_string(&mut input_string).await?;
-
-            let mut parsed: ParsedGenericMaterial = toml::from_str(&input_string).map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
-
-            let type_name = parsed
-                .material
-                .get("type")
-                .and_then(|v| v.as_str())
-                .unwrap_or(StandardMaterial::type_path());
-
-            let registry = self.type_registry.read();
-
-            let mut registration_candidates = Vec::new();
-
-            for reg in registry.iter() {
-                if reg.type_info().type_path() == type_name || reg.type_info().ty().ident() == Some(type_name) {
-                    registration_candidates.push(reg);
-                }
-            }
-
-            if registration_candidates.is_empty() {
-                return Err(GenericMaterialError::MaterialTypeNotFound(type_name.to_string()));
-            } else if registration_candidates.len() > 1 {
-                return Err(GenericMaterialError::TooManyTypeCandidates(
-                    type_name.to_string(),
-                    registration_candidates
-                        .into_iter()
-                        .map(|reg| reg.type_info().type_path().to_string())
-                        .collect(),
-                ));
-            }
-            let reg = registration_candidates[0];
-
-            parsed.material.remove("type");
-
-            let mut mat = registry.get_type_data::<ReflectGenericMaterial>(reg.type_id()).expect("TODO").default();
-
-            let mut processor = GenericMaterialDeserializationProcessor { load_context };
-            let data = TypedReflectDeserializer::with_processor(reg, &registry, &mut processor)
-                .deserialize(parsed.material)
-                .map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
-
-            mat.try_apply(data.as_ref())?;
-
-            let mut properties: HashMap<String, Box<dyn GenericValue>> = HashMap::new();
-
-            for (key, value) in parsed.properties {
-                properties.insert(key, Box::new(value));
-            }
-
-            Ok(GenericMaterial {
-                material: mat.add_labeled_asset(load_context, "Material".to_string()),
-                properties,
-                type_registry: self.type_registry.clone(),
-            })
-        })
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["mat", "mat.toml", "material", "material.toml"]
-    }
 }
 
 /// Version of [ReflectDefault] that returns `Box<dyn ErasedMaterial>` instead of Box<dyn Reflect>.
