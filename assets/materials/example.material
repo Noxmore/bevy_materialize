@@ -5,14 +5,16 @@ type = "StandardMaterial"
 
 # TODO Should this also be inferred by leaving it out? (if not, we'll get a lot of boilerplate)
 # Asset paths are relative to the material's path.
-base_color_texture = "example.png"
+# base_color_texture = "example.png"
 # Colors and vectors can be represented with arrays.
 emissive = [0.1, 0.2, 0.1, 1.0]
+# emissive = { red = 0.1, green = 0.2, blue = 0.1, alpha = 1.0 }
 # Unit enums can either be "Opaque", or { Opaque = {} }. Non-unit enums have to be represented as below.
 alpha_mode = { Mask = 0.5 }
 
 # Custom Properties, these can be whatever you want.
 [properties]
+# This one is built-in, and sets the entity's Visibility when the material is applied.
+visibility = "Visible"
 collide = true
-render = true
 sounds = "wood"

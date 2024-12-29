@@ -11,3 +11,11 @@ bevy = { version = "0.15", default-features = false, features = [
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 toml = "0.8"
+
+[dev-dependencies.bevy]
+version = "0.15"
+features = [
+    "bevy_winit",
+    "dynamic_linking",
+    "file_watcher",
+]
