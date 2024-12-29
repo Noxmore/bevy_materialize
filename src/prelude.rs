@@ -1,1 +1,1 @@
-pub use crate::{GenericMaterial, GenericMaterialHolder, MaterializePlugin, TomlMaterialDeserializer};
+pub use crate::{GenericMaterial, GenericMaterial3d, MaterializePlugin, TomlMaterialDeserializer};

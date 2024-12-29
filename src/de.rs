@@ -1,12 +1,8 @@
-use std::{
-    any::TypeId,
-    fmt::{self, Formatter},
-};
+use std::any::TypeId;
 
 use ::serde;
 use bevy::reflect::{serde::*, *};
 use bevy::{asset::LoadContext, prelude::*};
-use serde::de::{SeqAccess, Visitor};
 
 // pub type DeserializationProcessor = dyn Fn(&mut GenericMaterialDeserializationProcessor, &bevy::reflect::TypeRegistration, &bevy::reflect::TypeRegistry, );
 pub struct GenericMaterialDeserializationProcessor<'w, 'l> {
@@ -16,7 +12,7 @@ impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_
     fn try_deserialize<'de, D: serde::Deserializer<'de>>(
         &mut self,
         registration: &TypeRegistration,
-        registry: &TypeRegistry,
+        _registry: &TypeRegistry,
         deserializer: D,
     ) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error> {
         // TODO maybe make this customizable at some point?

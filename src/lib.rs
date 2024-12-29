@@ -5,23 +5,16 @@ use std::{
     error::Error,
     fmt::{self},
     io,
-    sync::{Arc, RwLock},
 };
 
 use bevy::{
     asset::{AssetLoader, AsyncReadExt, LoadContext, UntypedAssetId},
     prelude::*,
-    reflect::{
-        serde::{ReflectDeserializer, TypedReflectDeserializer},
-        ApplyError, DynamicStruct, DynamicTypePath, FromType, TypeRegistration, TypeRegistry,
-    },
+    reflect::{serde::TypedReflectDeserializer, ApplyError, FromType, TypeRegistration, TypeRegistry},
     utils::HashMap,
 };
 use de::GenericMaterialDeserializationProcessor;
-use serde::{
-    de::{DeserializeOwned, DeserializeSeed},
-    Deserialize,
-};
+use serde::{de::DeserializeSeed, Deserialize};
 use thiserror::Error;
 
 pub mod de;
@@ -33,7 +26,8 @@ pub struct MaterializePlugin<D: MaterialDeserializer> {
 }
 impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
     fn build(&self, app: &mut App) {
-        app.init_asset::<GenericMaterial>()
+        app.register_type::<GenericMaterial3d>()
+            .init_asset::<GenericMaterial>()
             .init_asset_loader::<GenericMaterialLoader>()
             .register_generic_material::<StandardMaterial>()
             .add_systems(
@@ -53,7 +47,7 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
 
     pub fn insert_generic_materials(
         mut commands: Commands,
-        query: Query<(Entity, &GenericMaterialHolder), Without<GenericMaterialApplied>>,
+        query: Query<(Entity, &GenericMaterial3d), Without<GenericMaterialApplied>>,
         generic_materials: Res<Assets<GenericMaterial>>,
     ) {
         for (entity, holder) in &query {
@@ -70,7 +64,7 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
     pub fn reload_generic_materials(
         mut commands: Commands,
         mut asset_events: EventReader<AssetEvent<GenericMaterial>>,
-        query: Query<(Entity, &GenericMaterialHolder), With<GenericMaterialApplied>>,
+        query: Query<(Entity, &GenericMaterial3d), With<GenericMaterialApplied>>,
     ) {
         for event in asset_events.read() {
             let AssetEvent::Modified { id } = event else { continue };
@@ -84,7 +78,7 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
     }
 
     pub fn visibility_material_property(
-        mut query: Query<(&GenericMaterialHolder, &mut Visibility), Without<GenericMaterialApplied>>,
+        mut query: Query<(&GenericMaterial3d, &mut Visibility), Without<GenericMaterialApplied>>,
         generic_materials: Res<Assets<GenericMaterial>>,
     ) {
         for (generic_material_holder, mut visibility) in &mut query {
@@ -108,25 +102,48 @@ impl MaterializeAppExt for App {
     }
 }
 
-// pub enum DynamicValue {
+/// Generic version of [MeshMaterial3d]. Stores a handle to a [GenericMaterial].
+///
+/// When on an entity, this automatically inserts the appropriate [MeshMaterial3d].
+///
+/// When removing or replacing this component, the inserted [MeshMaterial3d] will be removed.
+#[derive(Reflect, Debug, Clone, PartialEq, Eq, Default, Deref, DerefMut)]
+#[reflect(Component, Default)]
+pub struct GenericMaterial3d(pub Handle<GenericMaterial>);
+impl Component for GenericMaterial3d {
+    const STORAGE_TYPE: bevy::ecs::component::StorageType = bevy::ecs::component::StorageType::Table;
 
-// }
+    fn register_component_hooks(hooks: &mut bevy::ecs::component::ComponentHooks) {
+        hooks.on_replace(|mut world, entity, _| {
+            let generic_material_handle = &world.entity(entity).get::<Self>().unwrap().0;
+            let Some(generic_material) = world.resource::<Assets<GenericMaterial>>().get(generic_material_handle) else { return };
+            let material_handle = generic_material.material.clone();
 
-// TODO Better name
+            world.commands().queue(move |world: &mut World| {
+                let Ok(mut entity) = world.get_entity_mut(entity) else { return };
+
+                entity.remove::<GenericMaterialApplied>();
+                material_handle.remove(entity);
+            });
+        });
+    }
+}
+
 #[derive(Component, Reflect)]
-pub struct GenericMaterialHolder(pub Handle<GenericMaterial>);
-
-#[derive(Component, Reflect)]
+#[reflect(Component)]
 pub struct GenericMaterialApplied;
 
+/// Material asset containing a type-erased material handle, and generic user-defined properties.
 #[derive(Asset, TypePath)]
 pub struct GenericMaterial {
     pub material: Box<dyn ErasedMaterialHandle>,
+    // This could be better stored as a dyn PartialReflect with types like DynamicStruct,
+    // but as far as i can tell Bevy's deserialization infrastructure does not support that
     pub properties: HashMap<String, Box<dyn GenericValue>>,
     pub type_registry: AppTypeRegistry,
 }
 impl GenericMaterial {
-    /// Whether the surface should render in the world.
+    /// Property that changes the visibility component of applied entities to this value.
     pub const VISIBILITY: MaterialProperty<Visibility> = MaterialProperty::new("visibility", || Visibility::Inherited);
 
     pub fn get_property<T: PartialReflect>(&self, property: MaterialProperty<T>) -> Result<T, GenericMaterialError> {
@@ -200,6 +217,11 @@ impl MaterialDeserializer for TomlMaterialDeserializer {
     }
 }
 
+/// Trait meant for `Value` types of different serialization libraries. For example, for the [toml](::toml) crate, this is implemented for [toml::Value](::toml::Value).
+///
+/// This is for storing general non type specific data for deserializing on demand, such as in [GenericMaterial] properties.
+///
+/// NOTE: Because of the limitation of not being able to implement foreign traits for foreign types, this is automatically implemented for applicable types implementing the [Deserializer](serde::de::Deserializer) trait.
 pub trait GenericValue: Send + Sync {
     fn generic_deserialize(
         &self,
@@ -376,6 +398,7 @@ impl<M: Material + Reflect + Struct + Clone> From<M> for Box<dyn ErasedMaterial>
 pub trait ErasedMaterialHandle: Send + Sync + fmt::Debug + Any {
     fn clone_into_erased(&self) -> Box<dyn ErasedMaterialHandle>;
     fn insert(&self, entity: EntityWorldMut);
+    fn remove(&self, entity: EntityWorldMut);
     fn to_untyped_handle(&self) -> UntypedHandle;
     fn id(&self) -> UntypedAssetId;
 }
@@ -387,6 +410,10 @@ impl<M: Material> ErasedMaterialHandle for Handle<M> {
 
     fn insert(&self, mut entity: EntityWorldMut) {
         entity.insert(MeshMaterial3d(self.clone()));
+    }
+
+    fn remove(&self, mut entity: EntityWorldMut) {
+        entity.remove::<MeshMaterial3d<M>>();
     }
 
     fn to_untyped_handle(&self) -> UntypedHandle {

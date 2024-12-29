@@ -11,7 +11,7 @@ fn main() {
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Mesh3d(asset_server.add(Cuboid::from_length(1.).into())),
-        GenericMaterialHolder(asset_server.load("materials/example.material")),
+        GenericMaterial3d(asset_server.load("materials/example.material")),
     ));
 
     commands.spawn((
@@ -19,11 +19,3 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Transform::from_translation(Vec3::splat(3.)).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 }
-
-/* fn print_properties(
-    mut asset_events: EventReader<AssetEvent<GenericMaterial>>,
-) {
-    for event in asset_events.read() {
-        let AssetEvent::
-    }
-} */
