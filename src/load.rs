@@ -22,10 +22,6 @@ pub trait MaterialDeserializer: Send + Sync + 'static {
 
     /// Deserializes raw bytes into a value.
     fn deserialize<T: DeserializeOwned>(&self, input: &[u8]) -> Result<T, Self::Error>;
-    /// Used to get the inner data out of a value if it represents a string.
-    fn value_as_str<'v>(&self, value: &'v Self::Value) -> Option<&'v str>;
-    /// Converts a string value hashmap into a value for deserialization.
-    fn hashmap_into_value(&self, map: HashMap<String, Self::Value>) -> Self::Value;
 }
 
 #[cfg(feature = "toml")]
@@ -40,14 +36,6 @@ impl MaterialDeserializer for TomlMaterialDeserializer {
         let s = str::from_utf8(input).map_err(serde::de::Error::custom)?;
         toml::from_str(s)
     }
-
-    fn value_as_str<'v>(&self, value: &'v Self::Value) -> Option<&'v str> {
-        value.as_str()
-    }
-
-    fn hashmap_into_value(&self, map: HashMap<String, Self::Value>) -> Self::Value {
-        toml::Value::Table(map.into_iter().collect())
-    }
 }
 
 #[cfg(feature = "json")]
@@ -61,14 +49,6 @@ impl MaterialDeserializer for JsonMaterialDeserializer {
     fn deserialize<T: DeserializeOwned>(&self, input: &[u8]) -> Result<T, Self::Error> {
         let s = str::from_utf8(input).map_err(serde::de::Error::custom)?;
         serde_json::from_str(s)
-    }
-
-    fn value_as_str<'v>(&self, value: &'v Self::Value) -> Option<&'v str> {
-        value.as_str()
-    }
-
-    fn hashmap_into_value(&self, map: HashMap<String, Self::Value>) -> Self::Value {
-        serde_json::Value::Object(map.into_iter().collect())
     }
 }
 
@@ -90,7 +70,9 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
         Box::pin(async {
             #[derive(Deserialize)]
             struct ParsedGenericMaterial<Value: GenericValue> {
-                material: HashMap<String, Value>,
+                #[serde(rename = "type")]
+                ty: Option<String>,
+                material: Value,
                 properties: HashMap<String, Value>,
             }
 
@@ -98,17 +80,12 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
             reader.read_to_end(&mut input).await?;
 
             // let mut parsed: ParsedGenericMaterial<D::Value> = toml::from_str(&input_string).map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
-            let mut parsed: ParsedGenericMaterial<D::Value> = self
+            let parsed: ParsedGenericMaterial<D::Value> = self
                 .deserializer
                 .deserialize(&input)
                 .map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
 
-            let type_name = parsed
-                .material
-                .get("type")
-                .and_then(|value| self.deserializer.value_as_str(value))
-                // .and_then(|value| String::deserialize(value))
-                .unwrap_or(StandardMaterial::type_path());
+            let type_name = parsed.ty.as_ref().map(String::as_str).unwrap_or(StandardMaterial::type_path());
 
             let registry = self.type_registry.read();
 
@@ -133,13 +110,11 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
             }
             let reg = registration_candidates[0];
 
-            parsed.material.remove("type");
-
             let mut mat = registry.get_type_data::<ReflectGenericMaterial>(reg.type_id()).expect("TODO").default();
 
             let mut processor = GenericMaterialDeserializationProcessor { load_context };
             let data = TypedReflectDeserializer::with_processor(reg, &registry, &mut processor)
-                .deserialize(self.deserializer.hashmap_into_value(parsed.material))
+                .deserialize(parsed.material)
                 .map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
 
             mat.try_apply(data.as_ref())?;

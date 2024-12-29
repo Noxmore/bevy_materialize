@@ -1,9 +1,9 @@
-[material]
 # The type name of the material. Can either be the full path (e.g. bevy_pbr::pbr_material::StandardMaterial),
 # or, if only one registered material has the name, just the name itself.
 # If this field is not specified, defaults to StandardMaterial
 type = "StandardMaterial"
 
+[material]
 # Asset paths are relative to the material's path.
 base_color_texture = "example.png"
 # Colors and vectors can be represented with arrays.
