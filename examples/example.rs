@@ -4,6 +4,7 @@ use bevy_materialize::prelude::*;
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, MaterializePlugin::new(TomlMaterialDeserializer)))
+        .insert_resource(AmbientLight { brightness: 1000., ..default() })
         .add_systems(Startup, setup)
         .run();
 }

@@ -3,8 +3,8 @@ use std::any::TypeId;
 use ::serde;
 use bevy::reflect::{serde::*, *};
 use bevy::{asset::LoadContext, prelude::*};
+use serde::Deserialize;
 
-// pub type DeserializationProcessor = dyn Fn(&mut GenericMaterialDeserializationProcessor, &bevy::reflect::TypeRegistration, &bevy::reflect::TypeRegistry, );
 pub struct GenericMaterialDeserializationProcessor<'w, 'l> {
     pub load_context: &'l mut LoadContext<'w>,
 }
@@ -18,7 +18,12 @@ impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_
         // TODO maybe make this customizable at some point?
 
         if registration.type_id() == TypeId::of::<Handle<Image>>() {
-            // TODO Load assets
+            let path = String::deserialize(deserializer)?;
+            
+            let parent_path = self.load_context.asset_path().parent().unwrap_or_default();
+            let path = parent_path.resolve(&path).map_err(serde::de::Error::custom)?;
+            let handle = self.load_context.load::<Image>(path);
+            return Ok(Ok(Box::new(handle)));
         }
 
         Ok(Err(deserializer))
