@@ -73,7 +73,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
                 #[serde(rename = "type")]
                 ty: Option<String>,
                 material: Value,
-                properties: HashMap<String, Value>,
+                properties: Option<HashMap<String, Value>>,
             }
 
             let mut input = Vec::new();
@@ -121,8 +121,10 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 
             let mut properties: HashMap<String, Box<dyn GenericValue>> = HashMap::new();
 
-            for (key, value) in parsed.properties {
-                properties.insert(key, Box::new(value));
+            if let Some(parsed_properties) = parsed.properties {
+                for (key, value) in parsed_properties {
+                    properties.insert(key, Box::new(value));
+                }
             }
 
             Ok(GenericMaterial {
