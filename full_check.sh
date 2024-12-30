@@ -9,8 +9,8 @@ cargo clippy --all-targets
 echo cargo clippy --no-default-features
 cargo clippy --no-default-features
 
-echo cargo c --all-features --all-targets
-cargo c --all-features --all-targets
+echo cargo c --features "toml, json" --all-targets
+cargo c --features "toml, json" --all-targets
 
 echo cargo fmt --all --check
 cargo fmt --all --check
