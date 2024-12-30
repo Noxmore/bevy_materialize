@@ -3,10 +3,14 @@
     type: Some("StandardMaterial"),
 
     material: StandardMaterial(
+        base_color_texture: Some("example.png"),
         emissive: [0.5, 0.2, 0.1, 1.0],
+        alpha_mode: Mask(0.5),
     ),
 
     properties: {
-        "visible": true,
+        "visibility": "Visible",
+        "collide": true,
+        "sounds": "wood",
     }
 )
