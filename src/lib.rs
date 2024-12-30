@@ -21,6 +21,14 @@ use thiserror::Error;
 pub mod load;
 pub mod prelude;
 
+// Re-exports
+#[cfg(feature = "toml")]
+pub use toml;
+#[cfg(feature = "json")]
+pub use serde_json;
+#[cfg(feature = "ron")]
+pub use ron;
+
 #[derive(Default)]
 pub struct MaterializePlugin<D: MaterialDeserializer> {
     pub deserializer: Arc<D>,

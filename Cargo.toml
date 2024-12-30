@@ -23,7 +23,12 @@ features = [
     "file_watcher",
 ]
 
+[[example]]
+name = "example"
+required-features = ["json", "toml", "ron"]
+
 [features]
 default = ["toml"]
 json = ["dep:serde_json"]
 toml = ["dep:toml"]
+ron = ["dep:ron"]

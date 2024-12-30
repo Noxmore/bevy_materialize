@@ -1,3 +1,4 @@
+use std::fmt;
 use std::any::TypeId;
 use std::str;
 use std::sync::Arc;
@@ -51,6 +52,42 @@ impl MaterialDeserializer for JsonMaterialDeserializer {
         serde_json::from_str(s)
     }
 }
+
+#[cfg(feature = "ron")]
+pub struct RonMaterialDeserializer;
+#[cfg(feature = "ron")]
+impl MaterialDeserializer for RonMaterialDeserializer {
+    type Value = ron::Value;
+    type Error = RonMaterialDeserializerError;
+    const EXTENSIONS: &[&str] = &["ron", "mat", "mat.ron", "material", "material.ron"];
+
+    fn deserialize<T: DeserializeOwned>(&self, input: &[u8]) -> Result<T, Self::Error> {
+        let s = str::from_utf8(input).map_err(serde::de::Error::custom)?;
+        ron::from_str(s).map_err(RonMaterialDeserializerError)
+    }
+}
+
+// SpannedError doesn't implement serde::de::Error
+#[cfg(feature = "ron")]
+#[derive(Debug, Clone)]
+pub struct RonMaterialDeserializerError(ron::error::SpannedError);
+#[cfg(feature = "ron")]
+impl serde::de::Error for RonMaterialDeserializerError {
+    fn custom<T>(msg:T) -> Self where T:std::fmt::Display {
+        Self(ron::error::SpannedError {
+            code: ron::Error::custom(msg),
+            position: ron::error::Position { line: 0, col: 0 },
+        })
+    }
+}
+#[cfg(feature = "ron")]
+impl fmt::Display for RonMaterialDeserializerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+#[cfg(feature = "ron")]
+impl std::error::Error for RonMaterialDeserializerError {}
 
 pub struct GenericMaterialLoader<D: MaterialDeserializer> {
     pub type_registry: AppTypeRegistry,
