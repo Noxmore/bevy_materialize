@@ -1,19 +1,11 @@
-# The type name of the material. Can either be the full path (e.g. bevy_pbr::pbr_material::StandardMaterial),
-# or, if only one registered material has the name, just the name itself.
-# If this field is not specified, defaults to StandardMaterial
 type = "StandardMaterial"
 
 [material]
-# Asset paths are relative to the material's path.
 base_color_texture = "example.png"
-# Colors and vectors can be represented with arrays.
 emissive = [0.1, 0.2, 0.5, 1.0]
-# Unit enums can either be "Opaque", or { Opaque = {} }. Non-unit enums have to be represented as below.
 alpha_mode = { Mask = 0.5 }
 
-# Custom Properties, these can be whatever you want.
 [properties]
-# This one is built-in, and sets the entity's Visibility when the material is applied.
 visibility = "Visible"
-collide = true
+collision = true
 sounds = "wood"

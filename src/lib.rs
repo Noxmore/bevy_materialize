@@ -1,3 +1,5 @@
+#![doc = include_str!("../readme.md")]
+
 use core::str;
 use std::{
     any::{type_name, Any, TypeId},
@@ -217,14 +219,14 @@ impl<T: PartialReflect> MaterialProperty<T> {
 /// This is for storing general non type specific data for deserializing on demand, such as in [GenericMaterial] properties.
 ///
 /// NOTE: Because of the limitation of not being able to implement foreign traits for foreign types, this is automatically implemented for applicable types implementing the [Deserializer](serde::de::Deserializer) trait.
-pub trait GenericValue: Send + Sync {
+pub trait GenericValue: fmt::Debug + Send + Sync {
     fn generic_deserialize(
         &self,
         registration: &TypeRegistration,
         registry: &TypeRegistry,
     ) -> Result<Box<dyn PartialReflect>, Box<dyn Error + Send + Sync>>;
 }
-impl<T: Deserializer<'static, Error: Send + Sync> + Clone + Send + Sync + 'static> GenericValue for T {
+impl<T: Deserializer<'static, Error: Send + Sync> + fmt::Debug + Clone + Send + Sync + 'static> GenericValue for T {
     fn generic_deserialize(
         &self,
         registration: &TypeRegistration,

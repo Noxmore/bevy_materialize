@@ -7,7 +7,7 @@
 
     "properties": {
         "visibility": "Visible",
-        "collide": true,
+        "collision": true,
         "sounds": "wood"
     }
 }
