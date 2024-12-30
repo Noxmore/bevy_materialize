@@ -146,7 +146,7 @@ impl Component for GenericMaterial3d {
 pub struct GenericMaterialApplied;
 
 /// Material asset containing a type-erased material handle, and generic user-defined properties.
-#[derive(Asset, TypePath)]
+#[derive(Asset, TypePath, Debug)]
 pub struct GenericMaterial {
     pub material: Box<dyn ErasedMaterialHandle>,
     // This could be better stored as a dyn PartialReflect with types like DynamicStruct,
