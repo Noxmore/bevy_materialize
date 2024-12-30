@@ -14,7 +14,7 @@ use serde::{de::DeserializeSeed, Deserialize};
 
 use crate::{prelude::*, GenericMaterialError, GenericValue, ReflectGenericMaterial};
 
-/// Main trait for file format implementation of generic materials. See [TomlMaterialDeserializer] and [JsonMaterialDeserializer] for built-in/example implementations.
+/// Main trait for file format implementation of generic materials. See [TomlMaterialDeserializer], [RonMaterialDeserializer] and [JsonMaterialDeserializer] for built-in/example implementations.
 pub trait MaterialDeserializer: Send + Sync + 'static {
     type Value: GenericValue + DeserializeOwned + Deserializer<'static, Error: Send + Sync>;
     type Error: serde::de::Error + Send + Sync;
