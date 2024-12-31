@@ -15,14 +15,13 @@ fn main() {
         "json" => app.add_plugins(MaterializePlugin::new(JsonMaterialDeserializer)),
         format => panic!("Invalid format: {format}"),
     };
-    
-    app
-        .insert_resource(AmbientLight {
-            brightness: 1000.,
-            ..default()
-        })
-        .add_systems(Startup, setup)
-        .run();
+
+    app.insert_resource(AmbientLight {
+        brightness: 1000.,
+        ..default()
+    })
+    .add_systems(Startup, setup)
+    .run();
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
