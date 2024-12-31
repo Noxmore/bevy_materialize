@@ -25,6 +25,7 @@ pub trait MaterialDeserializer: Send + Sync + 'static {
 }
 
 #[cfg(feature = "toml")]
+#[derive(Debug, Clone, Default)]
 pub struct TomlMaterialDeserializer;
 #[cfg(feature = "toml")]
 impl MaterialDeserializer for TomlMaterialDeserializer {
@@ -39,6 +40,7 @@ impl MaterialDeserializer for TomlMaterialDeserializer {
 }
 
 #[cfg(feature = "json")]
+#[derive(Debug, Clone, Default)]
 pub struct JsonMaterialDeserializer;
 #[cfg(feature = "json")]
 impl MaterialDeserializer for JsonMaterialDeserializer {
