@@ -87,7 +87,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
                 .deserialize(&input)
                 .map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
 
-            let type_name = parsed.ty.as_ref().map(String::as_str).unwrap_or(StandardMaterial::type_path());
+            let type_name = parsed.ty.as_deref().unwrap_or(StandardMaterial::type_path());
 
             let registry = self.type_registry.read();
 
