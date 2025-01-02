@@ -19,7 +19,6 @@ toml = { version = "0.8", optional = true }
 version = "0.15"
 features = [
     "bevy_winit",
-    "dynamic_linking",
     "file_watcher",
 ]
 
