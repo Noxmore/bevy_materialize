@@ -10,10 +10,9 @@ First, add the `MaterializePlugin` to your `App`.
 use bevy::prelude::*;
 use bevy_materialize::prelude::*;
 
-fn main() {
+fn main_example() {
     App::new()
         // ...
-        .add_plugins(DefaultPlugins)
         .add_plugins(MaterializePlugin::new(TomlMaterialDeserializer))
         // ...
         .run();
@@ -55,6 +54,31 @@ alpha_mode = { Mask = 0.5 }
 visibility = "Hidden"
 collision = true
 sounds = "wood"
+```
+
+For retrieving properties from a material, you do the following.
+```rust
+use bevy::prelude::*;
+use bevy_materialize::prelude::*;
+use bevy_materialize::GenericMaterialError;
+
+fn retrieve_properties_example(material: &GenericMaterial) {
+    // The type returned is based on the generic of the property. For example, VISIBILITY is a MaterialProperty<Visibility>.
+    let _: Result<Visibility, GenericMaterialError> = material.get_property(GenericMaterial::VISIBILITY);
+
+    // Like get_property(), but if anything goes wrong, returns the default value instead an error.
+    let _: Visibility = material.property(GenericMaterial::VISIBILITY);
+}
+```
+
+For creating your own properties, you should make an extension trait for GenericMaterial.
+```rust
+use bevy_materialize::prelude::*;
+
+pub trait MyMaterialPropertiesExt {
+    const MY_PROPERTY: MaterialProperty<f32> = MaterialProperty::new("my_property", || 5.);
+}
+impl MyMaterialPropertiesExt for GenericMaterial {}
 ```
 
 # Supported Bevy Versions
