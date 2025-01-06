@@ -11,10 +11,7 @@ use std::{
 };
 
 use bevy::{
-    asset::{LoadContext, UntypedAssetId},
-    prelude::*,
-    reflect::{serde::TypedReflectDeserializer, ApplyError, FromType, TypeRegistration, TypeRegistry},
-    utils::HashMap,
+    asset::{LoadContext, UntypedAssetId}, ecs::{component::ComponentId, world::DeferredWorld}, prelude::*, reflect::{serde::TypedReflectDeserializer, ApplyError, FromType, TypeRegistration, TypeRegistry}, utils::HashMap
 };
 use load::{GenericMaterialLoader, MaterialDeserializer};
 use serde::{de::DeserializeSeed, Deserializer};
@@ -117,24 +114,21 @@ impl MaterializeAppExt for App {
 /// When on an entity, this automatically inserts the appropriate [MeshMaterial3d].
 ///
 /// When removing or replacing this component, the inserted [MeshMaterial3d] will be removed.
-#[derive(Reflect, Debug, Clone, PartialEq, Eq, Default, Deref, DerefMut)]
+#[derive(Component, Reflect, Debug, Clone, PartialEq, Eq, Default, Deref, DerefMut)]
+#[component(on_replace = Self::on_replace)]
 #[reflect(Component, Default)]
 pub struct GenericMaterial3d(pub Handle<GenericMaterial>);
-impl Component for GenericMaterial3d {
-    const STORAGE_TYPE: bevy::ecs::component::StorageType = bevy::ecs::component::StorageType::Table;
+impl GenericMaterial3d {
+    fn on_replace(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
+        let generic_material_handle = &world.entity(entity).get::<Self>().unwrap().0;
+        let Some(generic_material) = world.resource::<Assets<GenericMaterial>>().get(generic_material_handle) else { return };
+        let material_handle = generic_material.material.clone();
 
-    fn register_component_hooks(hooks: &mut bevy::ecs::component::ComponentHooks) {
-        hooks.on_replace(|mut world, entity, _| {
-            let generic_material_handle = &world.entity(entity).get::<Self>().unwrap().0;
-            let Some(generic_material) = world.resource::<Assets<GenericMaterial>>().get(generic_material_handle) else { return };
-            let material_handle = generic_material.material.clone();
+        world.commands().queue(move |world: &mut World| {
+            let Ok(mut entity) = world.get_entity_mut(entity) else { return };
 
-            world.commands().queue(move |world: &mut World| {
-                let Ok(mut entity) = world.get_entity_mut(entity) else { return };
-
-                entity.remove::<GenericMaterialApplied>();
-                material_handle.remove(entity);
-            });
+            entity.remove::<GenericMaterialApplied>();
+            material_handle.remove(entity);
         });
     }
 }
