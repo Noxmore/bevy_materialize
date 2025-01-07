@@ -252,6 +252,39 @@ impl<T: Deserializer<'static, Error: Send + Sync> + fmt::Debug + Clone + Send + 
     }
 }
 
+/// Thin wrapper type implementing [GenericValue]. Used for directly passing values to properties.
+/// 
+/// # Examples
+/// ```
+/// # use std::collections::HashMap;
+/// # use bevy_materialize::{prelude::*, DirectGenericValue, GenericValue};
+/// # use bevy::reflect::{GetTypeRegistration, TypeRegistry};
+/// // In a real-world situation, this would be the properties in a GenericMaterial.
+/// let mut properties: HashMap<String, Box<dyn GenericValue>> = HashMap::new();
+/// 
+/// properties.insert("test".to_string(), Box::new(DirectGenericValue(true)));
+/// 
+/// assert!(properties.get("test").unwrap().generic_deserialize(&bool::get_type_registration(), &TypeRegistry::new()).is_ok());
+/// assert!(properties.get("test").unwrap().generic_deserialize(&i32::get_type_registration(), &TypeRegistry::new()).is_err());
+/// ```
+#[derive(Debug, Clone, Deref, DerefMut)]
+pub struct DirectGenericValue<T>(pub T);
+impl<T: PartialReflect + fmt::Debug + Clone + Send + Sync> GenericValue for DirectGenericValue<T> {
+    fn generic_deserialize(
+        &self,
+        registration: &TypeRegistration,
+        _registry: &TypeRegistry,
+    ) -> Result<Box<dyn PartialReflect>, Box<dyn Error + Send + Sync>> {
+        if registration.type_id() == TypeId::of::<T>() {
+            
+            Ok(Box::new(self.0.clone()))
+        } else {
+            Err(Box::new(io::Error::other(format!("Wrong type. Expected {}, found {}", registration.type_info().type_path(), type_name::<T>()))))
+        }
+    }
+}
+
+
 #[derive(Error, Debug)]
 pub enum GenericMaterialError {
     #[error("{0}")]
