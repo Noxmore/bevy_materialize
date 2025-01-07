@@ -204,7 +204,7 @@ impl AssetLoader for SimpleGenericMaterialLoader {
     ) -> impl bevy::utils::ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         Box::pin(async {
             let path = load_context.asset_path().clone();
-            
+
             let material = StandardMaterial {
                 base_color_texture: Some(load_context.load(path)),
                 ..self.settings.material.clone()

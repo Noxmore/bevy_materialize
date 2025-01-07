@@ -11,7 +11,11 @@ use std::{
 };
 
 use bevy::{
-    asset::{LoadContext, UntypedAssetId}, ecs::{component::ComponentId, world::DeferredWorld}, prelude::*, reflect::{serde::TypedReflectDeserializer, ApplyError, FromType, TypeRegistration, TypeRegistry}, utils::HashMap
+    asset::{LoadContext, UntypedAssetId},
+    ecs::{component::ComponentId, world::DeferredWorld},
+    prelude::*,
+    reflect::{serde::TypedReflectDeserializer, ApplyError, FromType, TypeRegistration, TypeRegistry},
+    utils::HashMap,
 };
 use load::{GenericMaterialLoader, MaterialDeserializer, SimpleGenericMaterialLoader, SimpleGenericMaterialLoaderSettings};
 use serde::{de::DeserializeSeed, Deserializer};
@@ -253,7 +257,7 @@ impl<T: Deserializer<'static, Error: Send + Sync> + fmt::Debug + Clone + Send + 
 }
 
 /// Thin wrapper type implementing [GenericValue]. Used for directly passing values to properties.
-/// 
+///
 /// # Examples
 /// ```
 /// # use std::collections::HashMap;
@@ -261,9 +265,9 @@ impl<T: Deserializer<'static, Error: Send + Sync> + fmt::Debug + Clone + Send + 
 /// # use bevy::reflect::{GetTypeRegistration, TypeRegistry};
 /// // In a real-world situation, this would be the properties in a GenericMaterial.
 /// let mut properties: HashMap<String, Box<dyn GenericValue>> = HashMap::new();
-/// 
+///
 /// properties.insert("test".to_string(), Box::new(DirectGenericValue(true)));
-/// 
+///
 /// assert!(properties.get("test").unwrap().generic_deserialize(&bool::get_type_registration(), &TypeRegistry::new()).is_ok());
 /// assert!(properties.get("test").unwrap().generic_deserialize(&i32::get_type_registration(), &TypeRegistry::new()).is_err());
 /// ```
@@ -276,14 +280,16 @@ impl<T: PartialReflect + fmt::Debug + Clone + Send + Sync> GenericValue for Dire
         _registry: &TypeRegistry,
     ) -> Result<Box<dyn PartialReflect>, Box<dyn Error + Send + Sync>> {
         if registration.type_id() == TypeId::of::<T>() {
-            
             Ok(Box::new(self.0.clone()))
         } else {
-            Err(Box::new(io::Error::other(format!("Wrong type. Expected {}, found {}", registration.type_info().type_path(), type_name::<T>()))))
+            Err(Box::new(io::Error::other(format!(
+                "Wrong type. Expected {}, found {}",
+                registration.type_info().type_path(),
+                type_name::<T>()
+            ))))
         }
     }
 }
-
 
 #[derive(Error, Debug)]
 pub enum GenericMaterialError {
