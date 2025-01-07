@@ -13,20 +13,28 @@ use std::{
 use bevy::{
     asset::{LoadContext, UntypedAssetId}, ecs::{component::ComponentId, world::DeferredWorld}, prelude::*, reflect::{serde::TypedReflectDeserializer, ApplyError, FromType, TypeRegistration, TypeRegistry}, utils::HashMap
 };
-use load::{GenericMaterialLoader, MaterialDeserializer};
+use load::{GenericMaterialLoader, MaterialDeserializer, SimpleGenericMaterialLoader, SimpleGenericMaterialLoaderSettings};
 use serde::{de::DeserializeSeed, Deserializer};
 use thiserror::Error;
 
 pub mod load;
 pub mod prelude;
 
-#[derive(Default)]
 pub struct MaterializePlugin<D: MaterialDeserializer> {
     pub deserializer: Arc<D>,
+    /// If `None`, doesn't register [SimpleGenericMaterialLoader].
+    pub simple_loader_settings: Option<SimpleGenericMaterialLoaderSettings>,
 }
 impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
     fn build(&self, app: &mut App) {
         let type_registry = app.world().resource::<AppTypeRegistry>().clone();
+
+        if let Some(settings) = &self.simple_loader_settings {
+            app.register_asset_loader(SimpleGenericMaterialLoader {
+                type_registry: type_registry.clone(),
+                settings: settings.clone(),
+            });
+        }
 
         app.register_type::<GenericMaterial3d>()
             .init_asset::<GenericMaterial>()
@@ -49,7 +57,13 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
     pub fn new(deserializer: D) -> Self {
         Self {
             deserializer: Arc::new(deserializer),
+            simple_loader_settings: Some(default()),
         }
+    }
+
+    pub fn with_simple_loader_settings(mut self, settings: Option<SimpleGenericMaterialLoaderSettings>) -> Self {
+        self.simple_loader_settings = settings;
+        self
     }
 
     pub fn insert_generic_materials(
@@ -93,6 +107,14 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
             let Ok(new_visibility) = generic_material.get_property(GenericMaterial::VISIBILITY) else { continue };
 
             *visibility = new_visibility;
+        }
+    }
+}
+impl<D: MaterialDeserializer + Default> Default for MaterializePlugin<D> {
+    fn default() -> Self {
+        Self {
+            deserializer: Arc::new(D::default()),
+            simple_loader_settings: Some(default()),
         }
     }
 }

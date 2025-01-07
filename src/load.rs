@@ -1,4 +1,5 @@
 use std::any::TypeId;
+use std::convert::Infallible;
 use std::str;
 use std::sync::Arc;
 
@@ -164,5 +165,56 @@ impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_
         }
 
         Ok(Err(deserializer))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SimpleGenericMaterialLoaderSettings {
+    /// The `StandardMaterial` to use as a base when loading materials.
+    pub material: StandardMaterial,
+    pub properties: fn() -> HashMap<String, Box<dyn GenericValue>>,
+}
+impl Default for SimpleGenericMaterialLoaderSettings {
+    fn default() -> Self {
+        Self {
+            material: StandardMaterial {
+                perceptual_roughness: 1.,
+                ..default()
+            },
+            properties: HashMap::new,
+        }
+    }
+}
+
+/// Loads a [GenericMaterial] containing a [StandardMaterial] directly from an image file, putting said image into the `base_color_texture` field of the material.
+pub struct SimpleGenericMaterialLoader {
+    pub type_registry: AppTypeRegistry,
+    pub settings: SimpleGenericMaterialLoaderSettings,
+}
+impl AssetLoader for SimpleGenericMaterialLoader {
+    type Asset = GenericMaterial;
+    type Settings = ();
+    type Error = Infallible;
+
+    fn load(
+        &self,
+        _reader: &mut dyn bevy::asset::io::Reader,
+        _settings: &Self::Settings,
+        load_context: &mut LoadContext,
+    ) -> impl bevy::utils::ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+        Box::pin(async {
+            let path = load_context.asset_path().clone();
+            
+            let material = StandardMaterial {
+                base_color_texture: Some(load_context.load(path)),
+                ..self.settings.material.clone()
+            };
+
+            Ok(GenericMaterial {
+                material: load_context.add_labeled_asset("Material".to_string(), material).into(),
+                properties: (self.settings.properties)(),
+                type_registry: self.type_registry.clone(),
+            })
+        })
     }
 }
