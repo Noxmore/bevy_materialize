@@ -3,6 +3,7 @@ use std::convert::Infallible;
 use std::str;
 use std::sync::Arc;
 
+use bevy::image::ImageLoader;
 use ::serde;
 use bevy::asset::AssetLoader;
 use bevy::reflect::{serde::*, *};
@@ -216,5 +217,9 @@ impl AssetLoader for SimpleGenericMaterialLoader {
                 type_registry: self.type_registry.clone(),
             })
         })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        ImageLoader::SUPPORTED_FILE_EXTENSIONS
     }
 }
