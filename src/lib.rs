@@ -47,14 +47,9 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
                 deserializer: self.deserializer.clone(),
             })
             .register_generic_material::<StandardMaterial>()
-            .add_systems(
-                PreUpdate,
-                (
-                    Self::insert_generic_materials,
-                    Self::visibility_material_property.before(Self::insert_generic_materials),
-                ),
-            )
-            .add_systems(PostUpdate, Self::reload_generic_materials);
+            .add_systems(PreUpdate, Self::reload_generic_materials)
+            .add_systems(Update, Self::visibility_material_property)
+            .add_systems(PostUpdate, Self::insert_generic_materials);
     }
 }
 impl<D: MaterialDeserializer> MaterializePlugin<D> {
