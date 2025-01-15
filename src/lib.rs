@@ -49,9 +49,9 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
                 deserializer: self.deserializer.clone(),
             })
             .register_generic_material::<StandardMaterial>()
-            .add_systems(PreUpdate, Self::reload_generic_materials)
-            .add_systems(Update, Self::visibility_material_property)
-            .add_systems(PostUpdate, Self::insert_generic_materials);
+            .add_systems(PreUpdate, reload_generic_materials)
+            .add_systems(Update, visibility_material_property)
+            .add_systems(PostUpdate, insert_generic_materials);
     }
 }
 impl<D: MaterialDeserializer> MaterializePlugin<D> {
@@ -66,50 +66,6 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
         self.simple_loader_settings = settings;
         self
     }
-
-    pub fn insert_generic_materials(
-        mut commands: Commands,
-        query: Query<(Entity, &GenericMaterial3d), Without<GenericMaterialApplied>>,
-        generic_materials: Res<Assets<GenericMaterial>>,
-    ) {
-        for (entity, holder) in &query {
-            let Some(generic_material) = generic_materials.get(&holder.0) else { continue };
-
-            let material = generic_material.material.clone();
-            commands
-                .entity(entity)
-                .queue(move |entity: EntityWorldMut<'_>| material.insert(entity))
-                .insert(GenericMaterialApplied);
-        }
-    }
-
-    pub fn reload_generic_materials(
-        mut commands: Commands,
-        mut asset_events: EventReader<AssetEvent<GenericMaterial>>,
-        query: Query<(Entity, &GenericMaterial3d), With<GenericMaterialApplied>>,
-    ) {
-        for event in asset_events.read() {
-            let AssetEvent::Modified { id } = event else { continue };
-
-            for (entity, holder) in &query {
-                if *id == holder.0.id() {
-                    commands.entity(entity).remove::<GenericMaterialApplied>();
-                }
-            }
-        }
-    }
-
-    pub fn visibility_material_property(
-        mut query: Query<(&GenericMaterial3d, &mut Visibility), Without<GenericMaterialApplied>>,
-        generic_materials: Res<Assets<GenericMaterial>>,
-    ) {
-        for (generic_material_holder, mut visibility) in &mut query {
-            let Some(generic_material) = generic_materials.get(&generic_material_holder.0) else { continue };
-            let Ok(new_visibility) = generic_material.get_property(GenericMaterial::VISIBILITY) else { continue };
-
-            *visibility = new_visibility;
-        }
-    }
 }
 impl<D: MaterialDeserializer + Default> Default for MaterializePlugin<D> {
     fn default() -> Self {
@@ -119,6 +75,57 @@ impl<D: MaterialDeserializer + Default> Default for MaterializePlugin<D> {
         }
     }
 }
+
+// Can't have these in a [MaterializePlugin] impl because of the generic.
+//////////////////////////////////////////////////////////////////////////////////
+//// SYSTEMS
+//////////////////////////////////////////////////////////////////////////////////
+
+pub fn insert_generic_materials(
+    mut commands: Commands,
+    query: Query<(Entity, &GenericMaterial3d), Without<GenericMaterialApplied>>,
+    generic_materials: Res<Assets<GenericMaterial>>,
+) {
+    for (entity, holder) in &query {
+        let Some(generic_material) = generic_materials.get(&holder.0) else { continue };
+
+        let material = generic_material.material.clone();
+        commands
+            .entity(entity)
+            .queue(move |entity: EntityWorldMut<'_>| material.insert(entity))
+            .insert(GenericMaterialApplied);
+    }
+}
+
+pub fn reload_generic_materials(
+    mut commands: Commands,
+    mut asset_events: EventReader<AssetEvent<GenericMaterial>>,
+    query: Query<(Entity, &GenericMaterial3d), With<GenericMaterialApplied>>,
+) {
+    for event in asset_events.read() {
+        let AssetEvent::Modified { id } = event else { continue };
+
+        for (entity, holder) in &query {
+            if *id == holder.0.id() {
+                commands.entity(entity).remove::<GenericMaterialApplied>();
+            }
+        }
+    }
+}
+
+pub fn visibility_material_property(
+    mut query: Query<(&GenericMaterial3d, &mut Visibility), Without<GenericMaterialApplied>>,
+    generic_materials: Res<Assets<GenericMaterial>>,
+) {
+    for (generic_material_holder, mut visibility) in &mut query {
+        let Some(generic_material) = generic_materials.get(&generic_material_holder.0) else { continue };
+        let Ok(new_visibility) = generic_material.get_property(GenericMaterial::VISIBILITY) else { continue };
+
+        *visibility = new_visibility;
+    }
+}
+
+
 
 pub trait MaterializeAppExt {
     /// Register a foreign material to be able to be created via [GenericMaterial].
