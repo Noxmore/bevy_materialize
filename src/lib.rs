@@ -50,8 +50,10 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
             })
             .register_generic_material::<StandardMaterial>()
             .add_systems(PreUpdate, reload_generic_materials)
-            .add_systems(Update, visibility_material_property)
-            .add_systems(PostUpdate, insert_generic_materials);
+            .add_systems(PostUpdate, (
+                visibility_material_property.before(insert_generic_materials),
+                insert_generic_materials,
+            ));
     }
 }
 impl<D: MaterialDeserializer> MaterializePlugin<D> {
