@@ -21,8 +21,9 @@ use load::{GenericMaterialLoader, MaterialDeserializer, SimpleGenericMaterialLoa
 use serde::{de::DeserializeSeed, Deserializer};
 use thiserror::Error;
 
-pub mod load;
 pub mod prelude;
+pub mod load;
+pub mod animation;
 
 pub struct MaterializePlugin<D: MaterialDeserializer> {
     pub deserializer: Arc<D>,
@@ -40,7 +41,8 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
             });
         }
 
-        app.register_type::<GenericMaterial3d>()
+        app.add_plugins(animation::AnimationPlugin)
+            .register_type::<GenericMaterial3d>()
             .init_asset::<GenericMaterial>()
             .register_asset_loader(GenericMaterialLoader {
                 type_registry,
@@ -356,8 +358,10 @@ pub trait ErasedMaterialHandle: Send + Sync + fmt::Debug + Any {
     fn remove(&self, entity: EntityWorldMut);
     fn to_untyped_handle(&self) -> UntypedHandle;
     fn id(&self) -> UntypedAssetId;
+
+    fn modify_with_commands(&self, commands: &mut Commands, modifier: Box<dyn FnOnce(Option<&mut dyn Reflect>) + Send + Sync>);
 }
-impl<M: Material> ErasedMaterialHandle for Handle<M> {
+impl<M: Material + Reflect> ErasedMaterialHandle for Handle<M> {
     // A lot of cloning here! Fun!
     fn clone_into_erased(&self) -> Box<dyn ErasedMaterialHandle> {
         self.clone().into()
@@ -378,8 +382,20 @@ impl<M: Material> ErasedMaterialHandle for Handle<M> {
     fn id(&self) -> UntypedAssetId {
         self.id().untyped()
     }
+
+    fn modify_with_commands(&self, commands: &mut Commands, modifier: Box<dyn FnOnce(Option<&mut dyn Reflect>) + Send + Sync>) {
+        let handle = self.clone();
+
+        commands.queue(move |world: &mut World| {
+            let mut assets = world.resource_mut::<Assets<M>>();
+            let asset = assets.get_mut(handle.id());
+            let asset: Option<&mut dyn Reflect> = match asset { Some(m) => Some(m), None => None };
+
+            modifier(asset);
+        });
+    }
 }
-impl<M: Material> From<Handle<M>> for Box<dyn ErasedMaterialHandle> {
+impl<M: Material + Reflect> From<Handle<M>> for Box<dyn ErasedMaterialHandle> {
     fn from(value: Handle<M>) -> Self {
         Box::new(value)
     }
