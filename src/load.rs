@@ -76,7 +76,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
             struct ParsedGenericMaterial<Value: GenericValue> {
                 #[serde(rename = "type")]
                 ty: Option<String>,
-                material: Value,
+                material: Option<Value>,
                 properties: Option<HashMap<String, Value>>,
             }
 
@@ -114,15 +114,19 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
             }
             let reg = registration_candidates[0];
 
-            let mut mat = registry.get_type_data::<ReflectGenericMaterial>(reg.type_id()).expect("TODO").default();
+            let Some(mut mat) = registry.get_type_data::<ReflectGenericMaterial>(reg.type_id()).map(ReflectGenericMaterial::default) else {
+                panic!("{} isn't a registered generic material", reg.type_info().type_path());
+            };
 
-            let mut processor = GenericMaterialDeserializationProcessor { load_context };
-            let data = TypedReflectDeserializer::with_processor(reg, &registry, &mut processor)
-                .deserialize(parsed.material)
-                .map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
-
-            mat.try_apply(data.as_ref())?;
-
+            if let Some(material) = parsed.material {
+                let mut processor = GenericMaterialDeserializationProcessor { load_context };
+                let data = TypedReflectDeserializer::with_processor(reg, &registry, &mut processor)
+                    .deserialize(material)
+                    .map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
+    
+                mat.try_apply(data.as_ref())?;
+            }
+            
             let mut properties: HashMap<String, Box<dyn GenericValue>> = HashMap::new();
 
             if let Some(parsed_properties) = parsed.properties {
