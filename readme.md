@@ -1,5 +1,5 @@
 # bevy_materialize
-Crate for loading materials from files.
+Crate for loading and applying type-erased materials in Bevy.
 
 Built-in supported formats are `json`, and `toml`, but you can easily add more.
 
