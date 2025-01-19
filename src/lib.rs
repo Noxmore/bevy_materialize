@@ -181,6 +181,10 @@ impl GenericMaterial {
     /// Property that changes the visibility component of applied entities to this value.
     pub const VISIBILITY: MaterialProperty<Visibility> = MaterialProperty::new("visibility", || Visibility::Inherited);
 
+    pub fn new(handle: impl Into<Box<dyn ErasedMaterialHandle>>) -> Self {
+        Self { handle: handle.into(), properties: HashMap::new() }
+    }
+    
     /// Sets a property to a [DirectGenericValue] containing `value`.
     pub fn set_property<T: PartialReflect + fmt::Debug + Clone + Send + Sync>(&mut self, property: MaterialProperty<T>, value: T) {
         self.properties.insert(property.key.to_string(), Box::new(DirectGenericValue(value)));
