@@ -103,7 +103,7 @@ impl GenericMaterial {
 }
 
 /// Stores the states and animations of [GenericMaterial]s.
-#[derive(Resource, Default)]
+#[derive(Resource, Reflect, Default)]
 pub struct AnimatedGenericMaterials {
     pub states: HashMap<AssetId<GenericMaterial>, MaterialAnimations>,
 }
