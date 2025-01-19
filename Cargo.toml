@@ -9,7 +9,6 @@ bevy = { version = "0.15", default-features = false, features = [
     "bevy_pbr",
     "png",
 ] }
-ron = { version = "0.8", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", optional = true }
 thiserror = "2"
@@ -21,6 +20,10 @@ features = [
     "bevy_winit",
     "file_watcher",
 ]
+
+[[example]]
+name = "example_json"
+required-features = ["json"]
 
 [features]
 default = ["toml"]

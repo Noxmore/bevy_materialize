@@ -11,19 +11,22 @@ use std::{
 };
 
 use bevy::{
-    asset::{LoadContext, UntypedAssetId},
-    ecs::{component::ComponentId, world::DeferredWorld},
+    asset::{AssetPath, LoadContext, UntypedAssetId},
+    ecs::{component::ComponentId, system::SystemParam, world::DeferredWorld},
     prelude::*,
-    reflect::{serde::TypedReflectDeserializer, ApplyError, FromType, TypeRegistration, TypeRegistry},
+    reflect::{serde::TypedReflectDeserializer, ApplyError, FromType, GetTypeRegistration, ReflectMut, TypeRegistration, TypeRegistry, Typed},
     utils::HashMap,
 };
-use load::{GenericMaterialLoader, MaterialDeserializer, SimpleGenericMaterialLoader, SimpleGenericMaterialLoaderSettings};
+use load::{
+    GenericMaterialDeserializationProcessor, GenericMaterialLoader, MaterialDeserializer, SimpleGenericMaterialLoader,
+    SimpleGenericMaterialLoaderSettings,
+};
 use serde::{de::DeserializeSeed, Deserializer};
 use thiserror::Error;
 
-pub mod prelude;
-pub mod load;
 pub mod animation;
+pub mod load;
+pub mod prelude;
 
 pub struct MaterializePlugin<D: MaterialDeserializer> {
     pub deserializer: Arc<D>,
@@ -35,10 +38,7 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
         let type_registry = app.world().resource::<AppTypeRegistry>().clone();
 
         if let Some(settings) = &self.simple_loader_settings {
-            app.register_asset_loader(SimpleGenericMaterialLoader {
-                type_registry: type_registry.clone(),
-                settings: settings.clone(),
-            });
+            app.register_asset_loader(SimpleGenericMaterialLoader { settings: settings.clone() });
         }
 
         app.add_plugins(animation::AnimationPlugin)
@@ -50,10 +50,10 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
             })
             .register_generic_material::<StandardMaterial>()
             .add_systems(PreUpdate, reload_generic_materials)
-            .add_systems(PostUpdate, (
-                visibility_material_property.before(insert_generic_materials),
-                insert_generic_materials,
-            ));
+            .add_systems(
+                PostUpdate,
+                (visibility_material_property.before(insert_generic_materials), insert_generic_materials),
+            );
     }
 }
 impl<D: MaterialDeserializer> MaterializePlugin<D> {
@@ -79,9 +79,9 @@ impl<D: MaterialDeserializer + Default> Default for MaterializePlugin<D> {
 }
 
 // Can't have these in a [MaterializePlugin] impl because of the generic.
-//////////////////////////////////////////////////////////////////////////////////
-//// SYSTEMS
-//////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////
+// // SYSTEMS
+// ////////////////////////////////////////////////////////////////////////////////
 
 pub fn insert_generic_materials(
     mut commands: Commands,
@@ -91,7 +91,7 @@ pub fn insert_generic_materials(
     for (entity, holder) in &query {
         let Some(generic_material) = generic_materials.get(&holder.0) else { continue };
 
-        let material = generic_material.material.clone();
+        let material = generic_material.handle.clone();
         commands
             .entity(entity)
             .queue(move |entity: EntityWorldMut<'_>| material.insert(entity))
@@ -117,7 +117,7 @@ pub fn reload_generic_materials(
 
 pub fn visibility_material_property(
     mut query: Query<(&GenericMaterial3d, &mut Visibility), Without<GenericMaterialApplied>>,
-    generic_materials: Res<Assets<GenericMaterial>>,
+    generic_materials: GenericMaterials,
 ) {
     for (generic_material_holder, mut visibility) in &mut query {
         let Some(generic_material) = generic_materials.get(&generic_material_holder.0) else { continue };
@@ -126,8 +126,6 @@ pub fn visibility_material_property(
         *visibility = new_visibility;
     }
 }
-
-
 
 pub trait MaterializeAppExt {
     /// Register a foreign material to be able to be created via [GenericMaterial].
@@ -154,7 +152,7 @@ impl GenericMaterial3d {
     fn on_replace(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
         let generic_material_handle = &world.entity(entity).get::<Self>().unwrap().0;
         let Some(generic_material) = world.resource::<Assets<GenericMaterial>>().get(generic_material_handle) else { return };
-        let material_handle = generic_material.material.clone();
+        let material_handle = generic_material.handle.clone();
 
         world.commands().queue(move |world: &mut World| {
             let Ok(mut entity) = world.get_entity_mut(entity) else { return };
@@ -172,18 +170,34 @@ impl GenericMaterial3d {
 pub struct GenericMaterialApplied;
 
 /// Material asset containing a type-erased material handle, and generic user-defined properties.
-#[derive(Asset, TypePath)]
+#[derive(Asset, TypePath, Debug)]
 pub struct GenericMaterial {
-    pub material: Box<dyn ErasedMaterialHandle>,
+    pub handle: Box<dyn ErasedMaterialHandle>,
     // This could be better stored as a dyn PartialReflect with types like DynamicStruct,
     // but as far as i can tell Bevy's deserialization infrastructure does not support that
     pub properties: HashMap<String, Box<dyn GenericValue>>,
-    pub type_registry: AppTypeRegistry,
 }
 impl GenericMaterial {
     /// Property that changes the visibility component of applied entities to this value.
     pub const VISIBILITY: MaterialProperty<Visibility> = MaterialProperty::new("visibility", || Visibility::Inherited);
 
+    /// Sets a property to a [DirectGenericValue] containing `value`.
+    pub fn set_property<T: PartialReflect + fmt::Debug + Clone + Send + Sync>(&mut self, property: MaterialProperty<T>, value: T) {
+        self.properties.insert(property.key.to_string(), Box::new(DirectGenericValue(value)));
+    }
+}
+
+/// Contains all necessary information to parse properties of a [GenericMaterial].
+#[derive(Clone)]
+pub struct GenericMaterialView<'w> {
+    pub material: &'w GenericMaterial,
+    pub id: AssetId<GenericMaterial>,
+    /// You can get an asset path with the supplied AssetServer, unless the asset is currently being loaded TODO ?
+    pub path: Option<Cow<'w, AssetPath<'static>>>,
+    pub asset_server: &'w AssetServer,
+    pub type_registry: &'w AppTypeRegistry,
+}
+impl GenericMaterialView<'_> {
     pub fn get_property<T: PartialReflect>(&self, property: MaterialProperty<T>) -> Result<T, GenericMaterialError> {
         let mut value = (property.default)();
         let registry = self.type_registry.read();
@@ -191,11 +205,17 @@ impl GenericMaterial {
             .get(TypeId::of::<T>())
             .ok_or(GenericMaterialError::TypeNotRegistered(type_name::<T>()))?;
 
+        let mut processor = GenericMaterialDeserializationProcessor::Loaded {
+            asset_server: self.asset_server,
+            path: self.path.as_ref().map(Cow::as_ref),
+        };
+
         value.try_apply(
-            self.properties
+            self.material
+                .properties
                 .get(property.key.as_ref())
                 .ok_or_else(|| GenericMaterialError::NoProperty(property.key.to_string()))?
-                .generic_deserialize(registration, &registry)
+                .generic_deserialize(registration, &registry, &mut processor)
                 .map_err(GenericMaterialError::Deserialize)?
                 .as_ref(),
         )?;
@@ -210,9 +230,42 @@ impl GenericMaterial {
     }
 }
 
+#[derive(SystemParam)]
+pub struct GenericMaterials<'w> {
+    type_registry: Res<'w, AppTypeRegistry>,
+    asset_server: Res<'w, AssetServer>,
+    pub assets: Res<'w, Assets<GenericMaterial>>,
+}
+impl GenericMaterials<'_> {
+    pub fn get(&self, id: impl Into<AssetId<GenericMaterial>>) -> Option<GenericMaterialView> {
+        let id = id.into();
+        let material = self.assets.get(id)?;
+        let path = self.asset_server.get_path(id).map(AssetPath::into_owned).map(Cow::Owned);
+
+        Some(GenericMaterialView {
+            material,
+            id,
+            path,
+            asset_server: &self.asset_server,
+            type_registry: &self.type_registry,
+        })
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = GenericMaterialView> {
+        // self.asset_server.get_path(id)
+        self.assets.iter().map(|(id, material)| GenericMaterialView {
+            material,
+            id,
+            path: self.asset_server.get_path(id).map(AssetPath::into_owned).map(Cow::Owned),
+            asset_server: &self.asset_server,
+            type_registry: &self.type_registry,
+        })
+    }
+}
+
 /// User-defined property about a material. These are stored in the [GenericMaterial] namespace, so custom properties should be created via an extension trait.
 ///
-/// To be used with [GenericMaterial::property] or [GenericMaterial::get_property].
+/// To be used with [GenericMaterialView::property] or [GenericMaterialView::get_property].
 ///
 /// # Examples
 /// ```
@@ -250,6 +303,7 @@ pub trait GenericValue: fmt::Debug + Send + Sync {
         &self,
         registration: &TypeRegistration,
         registry: &TypeRegistry,
+        processor: &mut GenericMaterialDeserializationProcessor,
     ) -> Result<Box<dyn PartialReflect>, Box<dyn Error + Send + Sync>>;
 }
 impl<T: Deserializer<'static, Error: Send + Sync> + fmt::Debug + Clone + Send + Sync + 'static> GenericValue for T {
@@ -257,26 +311,14 @@ impl<T: Deserializer<'static, Error: Send + Sync> + fmt::Debug + Clone + Send + 
         &self,
         registration: &TypeRegistration,
         registry: &TypeRegistry,
+        processor: &mut GenericMaterialDeserializationProcessor,
     ) -> Result<Box<dyn PartialReflect>, Box<dyn Error + Send + Sync>> {
-        Ok(TypedReflectDeserializer::new(registration, registry).deserialize(self.clone())?)
+        Ok(TypedReflectDeserializer::with_processor(registration, registry, processor).deserialize(self.clone())?)
     }
 }
 
 /// Thin wrapper type implementing [GenericValue]. Used for directly passing values to properties.
-///
-/// # Examples
-/// ```
-/// # use std::collections::HashMap;
-/// # use bevy_materialize::{prelude::*, DirectGenericValue, GenericValue};
-/// # use bevy::reflect::{GetTypeRegistration, TypeRegistry};
-/// // In a real-world situation, this would be the properties in a GenericMaterial.
-/// let mut properties: HashMap<String, Box<dyn GenericValue>> = HashMap::new();
-///
-/// properties.insert("test".to_string(), Box::new(DirectGenericValue(true)));
-///
-/// assert!(properties.get("test").unwrap().generic_deserialize(&bool::get_type_registration(), &TypeRegistry::new()).is_ok());
-/// assert!(properties.get("test").unwrap().generic_deserialize(&i32::get_type_registration(), &TypeRegistry::new()).is_err());
-/// ```
+/// Usually you should use [GenericMaterial::set_property], which uses this under the hood.
 #[derive(Debug, Clone, Deref, DerefMut)]
 pub struct DirectGenericValue<T>(pub T);
 impl<T: PartialReflect + fmt::Debug + Clone + Send + Sync> GenericValue for DirectGenericValue<T> {
@@ -284,6 +326,7 @@ impl<T: PartialReflect + fmt::Debug + Clone + Send + Sync> GenericValue for Dire
         &self,
         registration: &TypeRegistration,
         _registry: &TypeRegistry,
+        _processor: &mut GenericMaterialDeserializationProcessor,
     ) -> Result<Box<dyn PartialReflect>, Box<dyn Error + Send + Sync>> {
         if registration.type_id() == TypeId::of::<T>() {
             Ok(Box::new(self.0.clone()))
@@ -368,6 +411,7 @@ pub trait ErasedMaterialHandle: Send + Sync + fmt::Debug + Any {
     fn to_untyped_handle(&self) -> UntypedHandle;
     fn id(&self) -> UntypedAssetId;
 
+    #[allow(clippy::type_complexity)]
     fn modify_with_commands(&self, commands: &mut Commands, modifier: Box<dyn FnOnce(Option<&mut dyn Reflect>) + Send + Sync>);
 }
 impl<M: Material + Reflect> ErasedMaterialHandle for Handle<M> {
@@ -398,7 +442,10 @@ impl<M: Material + Reflect> ErasedMaterialHandle for Handle<M> {
         commands.queue(move |world: &mut World| {
             let mut assets = world.resource_mut::<Assets<M>>();
             let asset = assets.get_mut(handle.id());
-            let asset: Option<&mut dyn Reflect> = match asset { Some(m) => Some(m), None => None };
+            let asset: Option<&mut dyn Reflect> = match asset {
+                Some(m) => Some(m),
+                None => None,
+            };
 
             modifier(asset);
         });
@@ -412,5 +459,73 @@ impl<M: Material + Reflect> From<Handle<M>> for Box<dyn ErasedMaterialHandle> {
 impl Clone for Box<dyn ErasedMaterialHandle> {
     fn clone(&self) -> Self {
         self.clone_into_erased()
+    }
+}
+
+impl dyn ErasedMaterialHandle {
+    /// Attempts to modify a single field in the material. Writes an error out if something fails.
+    pub fn modify_field_with_commands<T: Reflect + Typed + FromReflect + GetTypeRegistration>(
+        &self,
+        commands: &mut Commands,
+        field_name: String,
+        value: T,
+    ) {
+        self.modify_with_commands(
+            commands,
+            Box::new(move |material| {
+                let Some(material) = material else { return };
+                let ReflectMut::Struct(s) = material.reflect_mut() else { return };
+
+                let Some(field) = s.field_mut(&field_name) else {
+                    error!(
+                        "Tried to animate field {field_name} of {}, but said field doesn't exist!",
+                        s.reflect_short_type_path()
+                    );
+                    return;
+                };
+
+                let apply_result = if field.represents::<Option<T>>() {
+                    field.try_apply(&Some(value))
+                } else {
+                    field.try_apply(&value)
+                };
+
+                if let Err(err) = apply_result {
+                    error!(
+                        "Tried to animate field {field_name} of {}, but failed to apply: {err}",
+                        s.reflect_short_type_path()
+                    );
+                }
+            }),
+        );
+    }
+}
+
+#[test]
+fn direct_values() {
+    App::new()
+        .register_type::<StandardMaterial>()
+        .register_type::<Visibility>()
+        .add_plugins((AssetPlugin::default(), MaterializePlugin::new(crate::load::TomlMaterialDeserializer)))
+        .add_systems(Startup, setup)
+        .add_systems(PostStartup, test)
+        .run();
+
+    fn setup(mut assets: ResMut<Assets<GenericMaterial>>) {
+        let mut material = GenericMaterial {
+            handle: Handle::<StandardMaterial>::default().into(),
+            properties: default(),
+        };
+
+        material.set_property(GenericMaterial::VISIBILITY, Visibility::Hidden);
+
+        assets.add(material);
+    }
+
+    fn test(generic_materials: GenericMaterials) {
+        assert!(matches!(
+            generic_materials.iter().next().unwrap().get_property(GenericMaterial::VISIBILITY),
+            Ok(Visibility::Hidden)
+        ));
     }
 }

@@ -56,18 +56,25 @@ collision = true
 sounds = "wood"
 ```
 
-For retrieving properties from a material, you do the following.
+For retrieving properties from a material, the easiest way is with a `GenericMaterialView`, which you can get via the `GenericMaterials` system param.
+
+It's not as easy as getting it from the `GenericMaterial` because properties need additional references to parse, such as the asset server and type registry.
 ```rust
 use bevy::prelude::*;
 use bevy_materialize::prelude::*;
 use bevy_materialize::GenericMaterialError;
 
-fn retrieve_properties_example(material: &GenericMaterial) {
-    // The type returned is based on the generic of the property. For example, VISIBILITY is a MaterialProperty<Visibility>.
-    let _: Result<Visibility, GenericMaterialError> = material.get_property(GenericMaterial::VISIBILITY);
-
-    // Like get_property(), but if anything goes wrong, returns the default value instead an error.
-    let _: Visibility = material.property(GenericMaterial::VISIBILITY);
+fn retrieve_properties_example(
+    materials: GenericMaterials,
+) {
+    // You can also do materials.get(<asset id>) to get a view.
+    for view in materials.iter() {
+        // The type returned is based on the generic of the property. For example, VISIBILITY is a MaterialProperty<Visibility>.
+        let _: Result<Visibility, GenericMaterialError> = view.get_property(GenericMaterial::VISIBILITY);
+    
+        // Like get_property(), but if anything goes wrong, returns the default value instead an error.
+        let _: Visibility = view.property(GenericMaterial::VISIBILITY);
+    }
 }
 ```
 

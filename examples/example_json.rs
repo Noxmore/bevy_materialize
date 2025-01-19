@@ -4,7 +4,7 @@ use bevy_materialize::prelude::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(MaterializePlugin::new(TomlMaterialDeserializer))
+        .add_plugins(MaterializePlugin::new(JsonMaterialDeserializer))
         .insert_resource(AmbientLight {
             brightness: 1000.,
             ..default()
@@ -16,12 +16,7 @@ fn main() {
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Mesh3d(asset_server.add(Cuboid::from_length(1.).into())),
-        GenericMaterial3d(asset_server.load("materials/example.material.toml")),
-    ));
-    commands.spawn((
-        Mesh3d(asset_server.add(Cuboid::from_length(1.).into())),
-        GenericMaterial3d(asset_server.load("materials/animated.toml")),
-        Transform::from_xyz(-1.5, 0., 1.5),
+        GenericMaterial3d(asset_server.load("materials/example.material.json")),
     ));
 
     commands.spawn((

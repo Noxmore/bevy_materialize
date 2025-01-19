@@ -1,106 +1,156 @@
 use std::time::{Duration, Instant};
 
-use bevy::{prelude::*, reflect::ReflectMut, utils::HashMap};
+use bevy::{
+    prelude::*,
+    utils::{HashMap, HashSet},
+};
 
-use crate::prelude::*;
+use crate::{insert_generic_materials, prelude::*, GenericMaterialError};
 
 pub struct AnimationPlugin;
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_systems(PreUpdate, Self::setup_animated_materials)
+        app.register_type::<MaterialAnimations>()
+            .init_resource::<AnimatedGenericMaterials>()
             .add_systems(Update, Self::animate_materials)
-        ;
+            .add_systems(PostUpdate, Self::setup_animated_materials.before(insert_generic_materials));
     }
 }
 impl AnimationPlugin {
     pub fn setup_animated_materials(
-        mut commands: Commands,
-        query: Query<(Entity, &GenericMaterial3d), Without<GenericMaterialAnimationState>>,
-        generic_materials: Res<Assets<GenericMaterial>>,
-    ) {
-        for (entity, generic_material_3d) in &query {
-            let Some(generic_material) = generic_materials.get(generic_material_3d.id()) else { continue };
-            let Ok(animation) = generic_material.get_property(GenericMaterial::ANIMATION) else { continue };
+        mut animated_materials: ResMut<AnimatedGenericMaterials>,
+        generic_materials: GenericMaterials,
 
-            commands.entity(entity).insert(GenericMaterialAnimationState {
-                current_frame: 0,
-                next_frame_time: animation.next_frame_time(),
-            });
+        mut asset_events: EventReader<AssetEvent<GenericMaterial>>,
+
+        mut failed_reading: Local<HashSet<AssetId<GenericMaterial>>>,
+    ) {
+        for event in asset_events.read() {
+            let AssetEvent::Modified { id } = event else { continue };
+
+            failed_reading.remove(id);
+            animated_materials.states.remove(id);
+        }
+
+        for view in generic_materials.iter() {
+            if failed_reading.contains(&view.id) || animated_materials.states.contains_key(&view.id) {
+                continue;
+            }
+            let mut animations = match view.get_property(GenericMaterial::ANIMATION) {
+                Ok(v) => v,
+                Err(GenericMaterialError::NoProperty(_)) => continue,
+                Err(err) => {
+                    error!("Failed to read animation property from GenericMaterial {:?}: {err}", view.id);
+                    failed_reading.insert(view.id);
+                    continue;
+                }
+            };
+
+            // Make next not switch instantly, slightly hacky.
+            if let Some(animation) = &mut animations.next {
+                animation.state.next_frame_time = animation.new_next_frame_time();
+            }
+
+            animated_materials.states.insert(view.id, animations);
         }
     }
-    
+
     pub fn animate_materials(
         mut commands: Commands,
-        mut query: Query<(Entity, &GenericMaterial3d, &mut GenericMaterialAnimationState)>,
+        mut animated_materials: ResMut<AnimatedGenericMaterials>,
         generic_materials: Res<Assets<GenericMaterial>>,
+
+        query: Query<(Entity, &GenericMaterial3d)>,
     ) {
         let now = Instant::now();
-        
-        for (entity, generic_material_3d, mut state) in &mut query {
-            // If the next frame is in the future, we don't need to update this.
-            if state.next_frame_time > now { continue }
-            // In the very common case that someone 
-            state.current_frame = state.current_frame.wrapping_add(1);
-            
-            let Some(generic_material) = generic_materials.get(generic_material_3d.id()) else {
-                commands.entity(entity).remove::<GenericMaterialAnimationState>();
-                continue;
-            };
-            let Ok(animation) = generic_material.get_property(GenericMaterial::ANIMATION) else {
-                commands.entity(entity).remove::<GenericMaterialAnimationState>();
-                continue;
-            };
 
-            state.next_frame_time = animation.next_frame_time();
+        for (id, animations) in &mut animated_materials.states {
+            // Material switching
+            if let Some(animation) = &mut animations.next {
+                if animation.state.next_frame_time <= now {
+                    animation.advance_frame();
 
-            if let Some(next) = animation.next {
-                commands.entity(entity).insert(GenericMaterial3d(next));
-            } else {
-                let current_frame = state.current_frame;
-                generic_material.material.modify_with_commands(&mut commands, Box::new(move |material| {
-                    let Some(material) = material else { return };
-                    let ReflectMut::Struct(s) = material.reflect_mut() else { return };
-
-                    for (field_name, frames) in animation.images {
-                        let Some(field) = s.field_mut(&field_name) else {
-                            error!("Tried to animate field {field_name} of {}, but said field doesn't exist!", s.reflect_short_type_path());
+                    for (entity, generic_material_3d) in &query {
+                        if generic_material_3d.id() != *id {
                             continue;
-                        };
-                        
-                        let new_idx = current_frame % frames.len();
-                        
-                        if let Err(err) = field.try_apply(&frames[new_idx]) {
-                            error!("Tried to animate field {field_name} of {}, but failed to apply: {err}", s.reflect_short_type_path());
                         }
+
+                        commands.entity(entity).insert(GenericMaterial3d(animation.value.clone()));
                     }
-                }));
+                }
+            }
+
+            // Image switching
+            if let Some(animation) = &mut animations.images {
+                if animation.state.next_frame_time <= now {
+                    animation.advance_frame();
+                    let Some(generic_material) = generic_materials.get(*id) else { continue };
+
+                    for (field_name, frames) in &animation.value {
+                        let new_idx = animation.state.current_frame % frames.len();
+                        generic_material
+                            .handle
+                            .modify_field_with_commands(&mut commands, field_name.clone(), frames[new_idx].clone());
+                    }
+                }
             }
         }
     }
 }
- 
+
 impl GenericMaterial {
-    pub const ANIMATION: MaterialProperty<MaterialAnimation> = MaterialProperty::new("animation", default);
+    pub const ANIMATION: MaterialProperty<MaterialAnimations> = MaterialProperty::new("animation", default);
 }
 
-// TODO different framerates for both next and images, also maybe support alt textures? (unlikely)
-#[derive(Reflect, Debug, Clone, Default)]
-pub struct MaterialAnimation {
-    pub fps: f32,
-    pub next: Option<Handle<GenericMaterial>>,
-    pub images: HashMap<String, Vec<Handle<Image>>>,
+/// Stores the states and animations of [GenericMaterial]s.
+#[derive(Resource, Default)]
+pub struct AnimatedGenericMaterials {
+    pub states: HashMap<AssetId<GenericMaterial>, MaterialAnimations>,
 }
-impl MaterialAnimation {
-    /// Creates an instant that is the point in time in the future that the next frame will show. (Assuming that a frame has just switched)
-    pub fn next_frame_time(&self) -> Instant {
+
+/// Animations stored in a [GenericMaterial].
+#[derive(Reflect, Debug, Clone, Default)]
+pub struct MaterialAnimations {
+    pub next: Option<NextAnimation>,
+    pub images: Option<ImagesAnimation>,
+}
+
+#[derive(Reflect, Debug, Clone, Default)]
+pub struct MaterialAnimation<T> {
+    pub fps: f32,
+    pub value: T,
+
+    #[reflect(ignore)]
+    pub state: GenericMaterialAnimationState,
+}
+impl<T> MaterialAnimation<T> {
+    /// Increases current frame and updates when the next frame is scheduled.
+    pub fn advance_frame(&mut self) {
+        self.state.current_frame = self.state.current_frame.wrapping_add(1);
+        self.state.next_frame_time = self.new_next_frame_time();
+    }
+
+    /// If the frame advances now, this returns when in the future the frame should advance again.
+    pub fn new_next_frame_time(&self) -> Instant {
         Instant::now() + Duration::from_secs_f32(1. / self.fps)
     }
 }
 
-/// Component that schedules the next frame of a [GenericMaterial3d] with it's material containing a [MaterialAnimation].
-#[derive(Component, Reflect, Debug, Clone, Copy)]
+pub type NextAnimation = MaterialAnimation<Handle<GenericMaterial>>;
+pub type ImagesAnimation = MaterialAnimation<HashMap<String, Vec<Handle<Image>>>>;
+
+/// Stores the current frame, and schedules when the next frame should occur.
+#[derive(Debug, Clone)]
 pub struct GenericMaterialAnimationState {
+    /// Is [usize::MAX] by default so it'll wrap around immediately to frame 0.
     pub current_frame: usize,
     pub next_frame_time: Instant,
+}
+impl Default for GenericMaterialAnimationState {
+    fn default() -> Self {
+        Self {
+            current_frame: usize::MAX,
+            next_frame_time: Instant::now(),
+        }
+    }
 }

@@ -3,9 +3,9 @@ use std::convert::Infallible;
 use std::str;
 use std::sync::Arc;
 
-use bevy::image::ImageLoader;
 use ::serde;
-use bevy::asset::AssetLoader;
+use bevy::asset::{AssetLoader, AssetPath};
+use bevy::image::ImageLoader;
 use bevy::reflect::{serde::*, *};
 use bevy::utils::HashMap;
 use bevy::{asset::LoadContext, prelude::*};
@@ -114,19 +114,22 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
             }
             let reg = registration_candidates[0];
 
-            let Some(mut mat) = registry.get_type_data::<ReflectGenericMaterial>(reg.type_id()).map(ReflectGenericMaterial::default) else {
+            let Some(mut mat) = registry
+                .get_type_data::<ReflectGenericMaterial>(reg.type_id())
+                .map(ReflectGenericMaterial::default)
+            else {
                 panic!("{} isn't a registered generic material", reg.type_info().type_path());
             };
 
             if let Some(material) = parsed.material {
-                let mut processor = GenericMaterialDeserializationProcessor { load_context };
+                let mut processor = GenericMaterialDeserializationProcessor::Loading(load_context);
                 let data = TypedReflectDeserializer::with_processor(reg, &registry, &mut processor)
                     .deserialize(material)
                     .map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
-    
+
                 mat.try_apply(data.as_ref())?;
             }
-            
+
             let mut properties: HashMap<String, Box<dyn GenericValue>> = HashMap::new();
 
             if let Some(parsed_properties) = parsed.properties {
@@ -136,9 +139,8 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
             }
 
             Ok(GenericMaterial {
-                material: mat.add_labeled_asset(load_context, "Material".to_string()),
+                handle: mat.add_labeled_asset(load_context, "Material".to_string()),
                 properties,
-                type_registry: self.type_registry.clone(),
             })
         })
     }
@@ -148,8 +150,27 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
     }
 }
 
-pub struct GenericMaterialDeserializationProcessor<'w, 'l> {
-    pub load_context: &'l mut LoadContext<'w>,
+pub enum GenericMaterialDeserializationProcessor<'w, 'l> {
+    Loading(&'l mut LoadContext<'w>),
+    Loaded {
+        asset_server: &'w AssetServer,
+        path: Option<&'l AssetPath<'static>>,
+    },
+}
+impl GenericMaterialDeserializationProcessor<'_, '_> {
+    pub fn asset_path(&self) -> Option<&AssetPath<'static>> {
+        match self {
+            Self::Loading(load_context) => Some(load_context.asset_path()),
+            Self::Loaded { asset_server: _, path } => *path,
+        }
+    }
+
+    pub fn load<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
+        match self {
+            Self::Loading(load_context) => load_context.load(path),
+            Self::Loaded { asset_server, path: _ } => asset_server.load(path),
+        }
+    }
 }
 impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_, '_> {
     fn try_deserialize<'de, D: serde::Deserializer<'de>>(
@@ -158,15 +179,24 @@ impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_
         _registry: &TypeRegistry,
         deserializer: D,
     ) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error> {
-        // TODO maybe make this customizable at some point?
+        if let Some(asset_path) = self.asset_path() {
+            // TODO good way to register loadable assets
 
-        if registration.type_id() == TypeId::of::<Handle<Image>>() {
-            let path = String::deserialize(deserializer)?;
+            if registration.type_id() == TypeId::of::<Handle<Image>>() {
+                let path = String::deserialize(deserializer)?;
 
-            let parent_path = self.load_context.asset_path().parent().unwrap_or_default();
-            let path = parent_path.resolve(&path).map_err(serde::de::Error::custom)?;
-            let handle = self.load_context.load::<Image>(path);
-            return Ok(Ok(Box::new(handle)));
+                let parent_path = asset_path.parent().unwrap_or_default();
+                let path = parent_path.resolve(&path).map_err(serde::de::Error::custom)?;
+                let handle = self.load::<Image>(path);
+                return Ok(Ok(Box::new(handle)));
+            } else if registration.type_id() == TypeId::of::<Handle<GenericMaterial>>() {
+                let path = String::deserialize(deserializer)?;
+
+                let parent_path = asset_path.parent().unwrap_or_default();
+                let path = parent_path.resolve(&path).map_err(serde::de::Error::custom)?;
+                let handle = self.load::<GenericMaterial>(path);
+                return Ok(Ok(Box::new(handle)));
+            }
         }
 
         Ok(Err(deserializer))
@@ -193,7 +223,6 @@ impl Default for SimpleGenericMaterialLoaderSettings {
 
 /// Loads a [GenericMaterial] containing a [StandardMaterial] directly from an image file, putting said image into the `base_color_texture` field of the material.
 pub struct SimpleGenericMaterialLoader {
-    pub type_registry: AppTypeRegistry,
     pub settings: SimpleGenericMaterialLoaderSettings,
 }
 impl AssetLoader for SimpleGenericMaterialLoader {
@@ -216,9 +245,8 @@ impl AssetLoader for SimpleGenericMaterialLoader {
             };
 
             Ok(GenericMaterial {
-                material: load_context.add_labeled_asset("Material".to_string(), material).into(),
+                handle: load_context.add_labeled_asset("Material".to_string(), material).into(),
                 properties: (self.settings.properties)(),
-                type_registry: self.type_registry.clone(),
             })
         })
     }

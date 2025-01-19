@@ -1,0 +1,8 @@
+[properties.animation]
+# Switches to this GenericMaterial after 1/fps seconds.
+next.fps = 0.1
+next.value = "example.material.toml"
+
+# Switches an image field in the material to these in sequence.
+images.fps = 2
+images.value = { base_color_texture = [ "animated_a.png", "animated_b.png", "animated_c.png" ] }
