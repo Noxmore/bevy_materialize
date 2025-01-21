@@ -1,7 +1,8 @@
 [properties.animation]
 # Switches to this GenericMaterial after 1/fps seconds.
 next.fps = 0.1
-next.value = "example.material.toml"
+# As a shortcut, you can also load an image file as a GenericMaterial.
+next.value = "example.png"
 
 # Switches an image field in the material to these in sequence.
 images.fps = 2
