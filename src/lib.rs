@@ -41,7 +41,7 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
             app.register_asset_loader(SimpleGenericMaterialLoader { settings: settings.clone() });
         }
 
-        app.add_plugins(animation::AnimationPlugin)
+        app.add_plugins((MaterializeMarkerPlugin, animation::AnimationPlugin))
             .register_type::<GenericMaterial3d>()
             .init_asset::<GenericMaterial>()
             .register_asset_loader(GenericMaterialLoader {
@@ -76,6 +76,12 @@ impl<D: MaterialDeserializer + Default> Default for MaterializePlugin<D> {
             simple_loader_settings: Some(default()),
         }
     }
+}
+
+/// Added when a [MaterializePlugin] is added. Can be used to check if any [MaterializePlugin] has been added.
+pub struct MaterializeMarkerPlugin;
+impl Plugin for MaterializeMarkerPlugin {
+    fn build(&self, _app: &mut App) {}
 }
 
 // Can't have these in a [MaterializePlugin] impl because of the generic.
@@ -182,9 +188,12 @@ impl GenericMaterial {
     pub const VISIBILITY: MaterialProperty<Visibility> = MaterialProperty::new("visibility", || Visibility::Inherited);
 
     pub fn new(handle: impl Into<Box<dyn ErasedMaterialHandle>>) -> Self {
-        Self { handle: handle.into(), properties: HashMap::new() }
+        Self {
+            handle: handle.into(),
+            properties: HashMap::new(),
+        }
     }
-    
+
     /// Sets a property to a [DirectGenericValue] containing `value`.
     pub fn set_property<T: PartialReflect + fmt::Debug + Clone + Send + Sync>(&mut self, property: MaterialProperty<T>, value: T) {
         self.properties.insert(property.key.to_string(), Box::new(DirectGenericValue(value)));
