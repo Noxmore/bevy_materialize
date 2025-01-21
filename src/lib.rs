@@ -64,8 +64,8 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
         }
     }
 
-    pub fn with_simple_loader_settings(mut self, settings: Option<SimpleGenericMaterialLoaderSettings>) -> Self {
-        self.simple_loader_settings = settings;
+    pub fn with_simple_loader_settings(mut self, settings: SimpleGenericMaterialLoaderSettings) -> Self {
+        self.simple_loader_settings = Some(settings);
         self
     }
 }
