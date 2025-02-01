@@ -135,13 +135,22 @@ pub fn visibility_material_property(
 }
 
 pub trait MaterializeAppExt {
-	/// Register a foreign material to be able to be created via [GenericMaterial].
+	/// Register a material to be able to be created via [GenericMaterial].
 	///
-	/// If you own the type, you can use `#[reflect(GenericMaterial)]` to automatically register it.
-	fn register_generic_material<M: Material + Reflect + Struct + Default>(&mut self) -> &mut Self;
+	/// This also registers the type if it isn't already registered.
+	///
+	/// If you own the type, you can also use `#[reflect(GenericMaterial)]` to automatically register it when you use `App::register_type::<...>()`.
+	/// I personally recommend just using this function though - saves a line of code.
+	fn register_generic_material<M: Material + Reflect + Struct + Default + GetTypeRegistration>(&mut self) -> &mut Self;
 }
 impl MaterializeAppExt for App {
-	fn register_generic_material<M: Material + Reflect + Struct + Default>(&mut self) -> &mut Self {
+	fn register_generic_material<M: Material + Reflect + Struct + Default + GetTypeRegistration>(&mut self) -> &mut Self {
+		let mut type_registry = self.main().world().resource::<AppTypeRegistry>().write();
+		if type_registry.get(TypeId::of::<M>()).is_none() {
+			type_registry.register::<M>();
+		}
+		drop(type_registry);
+
 		self.register_type_data::<M, ReflectGenericMaterial>()
 	}
 }
