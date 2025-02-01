@@ -56,6 +56,24 @@ collision = true
 sounds = "wood"
 ```
 
+For simplicity, you can also load a `GenericMaterial` directly from an image file, which puts a `StandardMaterial` internally. You can change the default `StandardMaterial` that it uses via
+```rust
+use bevy::prelude::*;
+use bevy_materialize::{prelude::*, load::SimpleGenericMaterialLoaderSettings};
+
+MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(Some(SimpleGenericMaterialLoaderSettings {
+    material: StandardMaterial {
+        // Now it's super shiny!
+        perceptual_roughness: 0.1,
+        ..default()
+    },
+    ..default()
+}));
+
+// This would disable the image loading functionality entirely.
+MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(None);
+```
+
 For retrieving properties from a material, the easiest way is with a `GenericMaterialView`, which you can get via the `GenericMaterials` system param.
 
 It's not as easy as getting it from the `GenericMaterial` because properties need additional references to parse, such as the asset server and type registry.
