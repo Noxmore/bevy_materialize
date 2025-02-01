@@ -7,7 +7,7 @@ use std::{
 	error::Error,
 	fmt::{self},
 	io,
-	sync::Arc,
+	sync::{Arc, RwLock},
 };
 
 use bevy::{
@@ -41,11 +41,15 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 			app.register_asset_loader(SimpleGenericMaterialLoader { settings: settings.clone() });
 		}
 
+		let shorthands = GenericMaterialShorthands::default();
+		
 		app.add_plugins((MaterializeMarkerPlugin, animation::AnimationPlugin))
+			.insert_resource(shorthands.clone())
 			.register_type::<GenericMaterial3d>()
 			.init_asset::<GenericMaterial>()
 			.register_asset_loader(GenericMaterialLoader {
 				type_registry,
+				shorthands,
 				deserializer: self.deserializer.clone(),
 			})
 			.register_generic_material::<StandardMaterial>()
@@ -134,6 +138,12 @@ pub fn visibility_material_property(
 	}
 }
 
+/// Collection of material type name shorthands for use loading by [GenericMaterial]s.
+#[derive(Resource, Debug, Clone, Default)]
+pub struct GenericMaterialShorthands {
+	pub values: Arc<RwLock<HashMap<String, TypeRegistration>>>,
+}
+
 pub trait MaterializeAppExt {
 	/// Register a material to be able to be created via [GenericMaterial].
 	///
@@ -142,6 +152,25 @@ pub trait MaterializeAppExt {
 	/// If you own the type, you can also use `#[reflect(GenericMaterial)]` to automatically register it when you use `App::register_type::<...>()`.
 	/// I personally recommend just using this function though - saves a line of code.
 	fn register_generic_material<M: Material + Reflect + Struct + Default + GetTypeRegistration>(&mut self) -> &mut Self;
+
+	/// If your material name is really long, you can use this to register a shorthand that can be used in place of it.
+	/// 
+	/// This is namely useful for extended materials, as those type names tend to have a lot of boilerplate.
+	/// 
+	/// # Examples
+	/// ```ignore
+	/// # App::new()
+	/// .register_generic_material_shorthand::<YourOldReallyLongNameOhMyGoshItsSoLong>("ShortName")
+	/// ```
+	/// Now you can turn
+	/// ```toml
+	/// type = "YourOldReallyLongNameOhMyGoshItsSoLong"
+	/// ```
+	/// into
+	/// ```toml
+	/// type = "ShortName"
+	/// ```
+	fn register_generic_material_shorthand<M: GetTypeRegistration>(&mut self, shorthand: impl Into<String>) -> &mut Self;
 }
 impl MaterializeAppExt for App {
 	fn register_generic_material<M: Material + Reflect + Struct + Default + GetTypeRegistration>(&mut self) -> &mut Self {
@@ -152,6 +181,11 @@ impl MaterializeAppExt for App {
 		drop(type_registry);
 
 		self.register_type_data::<M, ReflectGenericMaterial>()
+	}
+
+	fn register_generic_material_shorthand<M: GetTypeRegistration>(&mut self, shorthand: impl Into<String>) -> &mut Self {
+		self.main().world().resource::<GenericMaterialShorthands>().values.write().unwrap().insert(shorthand.into(), M::get_type_registration());
+		self
 	}
 }
 

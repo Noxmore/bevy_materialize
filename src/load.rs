@@ -13,7 +13,7 @@ use serde::de::DeserializeOwned;
 use serde::Deserializer;
 use serde::{de::DeserializeSeed, Deserialize};
 
-use crate::{prelude::*, GenericMaterialError, GenericValue, ReflectGenericMaterial};
+use crate::{prelude::*, GenericMaterialError, GenericMaterialShorthands, GenericValue, ReflectGenericMaterial};
 
 /// Main trait for file format implementation of generic materials. See [TomlMaterialDeserializer] and [JsonMaterialDeserializer] for built-in/example implementations.
 pub trait MaterialDeserializer: Send + Sync + 'static {
@@ -58,6 +58,7 @@ impl MaterialDeserializer for JsonMaterialDeserializer {
 
 pub struct GenericMaterialLoader<D: MaterialDeserializer> {
 	pub type_registry: AppTypeRegistry,
+	pub shorthands: GenericMaterialShorthands,
 	pub deserializer: Arc<D>,
 }
 impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
@@ -95,6 +96,13 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 
 			let mut registration_candidates = Vec::new();
 
+			let shorthands = self.shorthands.values.read().unwrap();
+			for (shorthand, reg) in shorthands.iter() {
+				if type_name == shorthand {
+					registration_candidates.push(reg);
+				}
+			}
+			
 			for reg in registry.iter() {
 				if reg.type_info().type_path() == type_name || reg.type_info().type_path_table().short_path() == type_name {
 					registration_candidates.push(reg);
