@@ -1,0 +1,5 @@
+type = "QuakeSkyMaterial"
+
+[material]
+fg = "example.png"
+bg = "example.png"

@@ -1,0 +1,9 @@
+# Note this this is a shorthand for "ExtendedMaterial<StandardMaterial, QuakeLiquidMaterialExt>"
+# so we don't have to type all that out. (see custom_material example)
+type = "QuakeLiquidMaterial"
+
+[material.base]
+base_color_texture = "example.png"
+
+[material.extension]
+magnitude = 0.5
