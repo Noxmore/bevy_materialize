@@ -42,7 +42,7 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 		}
 
 		let shorthands = GenericMaterialShorthands::default();
-		
+
 		app.add_plugins((MaterializeMarkerPlugin, animation::AnimationPlugin))
 			.insert_resource(shorthands.clone())
 			.register_type::<GenericMaterial3d>()
@@ -154,9 +154,9 @@ pub trait MaterializeAppExt {
 	fn register_generic_material<M: Material + Reflect + Struct + Default + GetTypeRegistration>(&mut self) -> &mut Self;
 
 	/// If your material name is really long, you can use this to register a shorthand that can be used in place of it.
-	/// 
+	///
 	/// This is namely useful for extended materials, as those type names tend to have a lot of boilerplate.
-	/// 
+	///
 	/// # Examples
 	/// ```ignore
 	/// # App::new()
@@ -184,7 +184,13 @@ impl MaterializeAppExt for App {
 	}
 
 	fn register_generic_material_shorthand<M: GetTypeRegistration>(&mut self, shorthand: impl Into<String>) -> &mut Self {
-		self.main().world().resource::<GenericMaterialShorthands>().values.write().unwrap().insert(shorthand.into(), M::get_type_registration());
+		self.main()
+			.world()
+			.resource::<GenericMaterialShorthands>()
+			.values
+			.write()
+			.unwrap()
+			.insert(shorthand.into(), M::get_type_registration());
 		self
 	}
 }

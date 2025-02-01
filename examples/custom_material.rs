@@ -1,18 +1,24 @@
 use bevy::{
-	image::{ImageAddressMode, ImageSamplerDescriptor}, math::vec3, pbr::{ExtendedMaterial, MaterialExtension}, prelude::*, render::render_resource::AsBindGroup
+	image::{ImageAddressMode, ImageSamplerDescriptor},
+	math::vec3,
+	pbr::{ExtendedMaterial, MaterialExtension},
+	prelude::*,
+	render::render_resource::AsBindGroup,
 };
 use bevy_materialize::prelude::*;
 
 fn main() {
 	App::new()
 		.add_plugins((
-			DefaultPlugins.set(ImagePlugin { default_sampler: ImageSamplerDescriptor {
-				// For the sky material
-				address_mode_u: ImageAddressMode::Repeat,
-				address_mode_v: ImageAddressMode::Repeat,
-				address_mode_w: ImageAddressMode::Repeat,
-				..ImageSamplerDescriptor::nearest()
-			} }),
+			DefaultPlugins.set(ImagePlugin {
+				default_sampler: ImageSamplerDescriptor {
+					// For the sky material
+					address_mode_u: ImageAddressMode::Repeat,
+					address_mode_v: ImageAddressMode::Repeat,
+					address_mode_w: ImageAddressMode::Repeat,
+					..ImageSamplerDescriptor::nearest()
+				},
+			}),
 			MaterializePlugin::new(TomlMaterialDeserializer),
 			MaterialPlugin::<QuakeSkyMaterial>::default(),
 			MaterialPlugin::<QuakeLiquidMaterial>::default(),

@@ -102,7 +102,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 					registration_candidates.push(reg);
 				}
 			}
-			
+
 			for reg in registry.iter() {
 				if reg.type_info().type_path() == type_name || reg.type_info().type_path_table().short_path() == type_name {
 					registration_candidates.push(reg);
