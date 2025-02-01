@@ -96,7 +96,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 			let mut registration_candidates = Vec::new();
 
 			for reg in registry.iter() {
-				if reg.type_info().type_path() == type_name || reg.type_info().ty().ident() == Some(type_name) {
+				if reg.type_info().type_path() == type_name || reg.type_info().type_path_table().short_path() == type_name {
 					registration_candidates.push(reg);
 				}
 			}
