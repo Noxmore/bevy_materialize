@@ -88,6 +88,22 @@ pub trait MyMaterialPropertiesExt {
 impl MyMaterialPropertiesExt for GenericMaterial {}
 ```
 
+When creating your own custom materials, all you have to do is register them in your app like so.
+```rust ignore
+App::new()
+    // ...
+    .register_generic_material::<YourMaterial>()
+```
+This will also register the type if it hasn't been registered already.
+
+You can also register a shorthand if your material's name is very long (like if it's an `ExtendedMaterial<...>`).
+```rust ignore
+App::new()
+    // ...
+    .register_generic_material_shorthand::<YourMaterialWithALongName>("YourMaterial")
+```
+This will allow you to put the shorthand in your file's `type` field instead of the type name.
+
 # Supported Bevy Versions
 | Bevy | bevy_materialize |
 -|-
