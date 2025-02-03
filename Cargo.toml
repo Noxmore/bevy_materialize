@@ -10,9 +10,9 @@ categories = ["game-development"]
 
 [dependencies]
 bevy = { version = "0.15", default-features = false, features = [
-    "bevy_asset",
-    "bevy_pbr",
-    "png",
+	"bevy_asset",
+	"bevy_pbr",
+	"png",
 ] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", optional = true }
@@ -22,8 +22,8 @@ toml = { version = "0.8", optional = true }
 [dev-dependencies.bevy]
 version = "0.15"
 features = [
-    "bevy_winit",
-    "file_watcher",
+	"bevy_winit",
+	"file_watcher",
 ]
 
 [[example]]
