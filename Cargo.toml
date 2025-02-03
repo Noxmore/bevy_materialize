@@ -1,7 +1,12 @@
 [package]
 name = "bevy_materialize"
+description = "Load, store, and apply type-erased materials in Bevy"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/Noxmore/bevy_materialize"
+license = "MIT OR Apache-2.0"
+readme = "readme.md"
+categories = ["game-development"]
 
 [dependencies]
 bevy = { version = "0.15", default-features = false, features = [
