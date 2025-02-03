@@ -10,10 +10,13 @@ use crate::{insert_generic_materials, prelude::*, GenericMaterialError};
 pub struct AnimationPlugin;
 impl Plugin for AnimationPlugin {
 	fn build(&self, app: &mut App) {
-		app.register_type::<MaterialAnimations>()
+		#[rustfmt::skip]
+		app
+			.register_type::<MaterialAnimations>()
 			.init_resource::<AnimatedGenericMaterials>()
 			.add_systems(Update, Self::animate_materials)
-			.add_systems(PostUpdate, Self::setup_animated_materials.before(insert_generic_materials));
+			.add_systems(PostUpdate, Self::setup_animated_materials.before(insert_generic_materials))
+		;
 	}
 }
 impl AnimationPlugin {
