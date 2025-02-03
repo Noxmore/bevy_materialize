@@ -3,14 +3,14 @@
 #!/bin/bash
 set -e
 
-echo cargo clippy
-cargo clippy
+echo cargo clippy --all-targets
+cargo clippy --all-targets
 
 echo cargo clippy --no-default-features
 cargo clippy --no-default-features
 
-echo cargo c --all-features --all-targets
-cargo c --all-features --all-targets
+echo cargo clippy --all-features --all-targets
+cargo clippy --all-features --all-targets
 
 echo cargo fmt --all --check
 cargo fmt --all --check
