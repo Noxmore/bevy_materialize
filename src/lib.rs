@@ -43,7 +43,9 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 
 		let shorthands = GenericMaterialShorthands::default();
 
-		app.add_plugins((MaterializeMarkerPlugin, animation::AnimationPlugin))
+		#[rustfmt::skip]
+		app
+			.add_plugins((MaterializeMarkerPlugin, animation::AnimationPlugin))
 			.insert_resource(shorthands.clone())
 			.register_type::<GenericMaterial3d>()
 			.init_asset::<GenericMaterial>()
@@ -54,10 +56,11 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 			})
 			.register_generic_material::<StandardMaterial>()
 			.add_systems(PreUpdate, reload_generic_materials)
-			.add_systems(
-				PostUpdate,
-				(visibility_material_property.before(insert_generic_materials), insert_generic_materials),
-			);
+			.add_systems(PostUpdate, (
+				insert_generic_materials,
+				visibility_material_property.before(insert_generic_materials),
+			))
+		;
 	}
 }
 impl<D: MaterialDeserializer> MaterializePlugin<D> {
