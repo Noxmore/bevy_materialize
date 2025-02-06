@@ -30,7 +30,7 @@ pub mod prelude;
 
 pub struct MaterializePlugin<D: MaterialDeserializer> {
 	pub deserializer: Arc<D>,
-	/// If `None`, doesn't register [SimpleGenericMaterialLoader].
+	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
 	pub simple_loader_settings: Option<SimpleGenericMaterialLoaderSettings>,
 }
 impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
@@ -71,7 +71,7 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
 		}
 	}
 
-	/// If `None`, doesn't register [SimpleGenericMaterialLoader].
+	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
 	pub fn with_simple_loader_settings(mut self, settings: Option<SimpleGenericMaterialLoaderSettings>) -> Self {
 		self.simple_loader_settings = settings;
 		self
@@ -86,13 +86,13 @@ impl<D: MaterialDeserializer + Default> Default for MaterializePlugin<D> {
 	}
 }
 
-/// Added when a [MaterializePlugin] is added. Can be used to check if any [MaterializePlugin] has been added.
+/// Added when a [`MaterializePlugin`] is added. Can be used to check if any [`MaterializePlugin`] has been added.
 pub struct MaterializeMarkerPlugin;
 impl Plugin for MaterializeMarkerPlugin {
 	fn build(&self, _app: &mut App) {}
 }
 
-// Can't have these in a [MaterializePlugin] impl because of the generic.
+// Can't have these in a MaterializePlugin impl because of the generic.
 // ////////////////////////////////////////////////////////////////////////////////
 // // SYSTEMS
 // ////////////////////////////////////////////////////////////////////////////////
@@ -141,14 +141,14 @@ pub fn visibility_material_property(
 	}
 }
 
-/// Collection of material type name shorthands for use loading by [GenericMaterial]s.
+/// Collection of material type name shorthands for use loading by [`GenericMaterial`]s.
 #[derive(Resource, Debug, Clone, Default)]
 pub struct GenericMaterialShorthands {
 	pub values: Arc<RwLock<HashMap<String, TypeRegistration>>>,
 }
 
 pub trait MaterializeAppExt {
-	/// Register a material to be able to be created via [GenericMaterial].
+	/// Register a material to be able to be created via [`GenericMaterial`].
 	///
 	/// This also registers the type if it isn't already registered.
 	///
@@ -198,11 +198,11 @@ impl MaterializeAppExt for App {
 	}
 }
 
-/// Generic version of [MeshMaterial3d]. Stores a handle to a [GenericMaterial].
+/// Generic version of [`MeshMaterial3d`]. Stores a handle to a [`GenericMaterial`].
 ///
-/// When on an entity, this automatically inserts the appropriate [MeshMaterial3d].
+/// When on an entity, this automatically inserts the appropriate [`MeshMaterial3d`].
 ///
-/// When removing or replacing this component, the inserted [MeshMaterial3d] will be removed.
+/// When removing or replacing this component, the inserted [`MeshMaterial3d`] will be removed.
 #[derive(Component, Reflect, Debug, Clone, PartialEq, Eq, Default, Deref, DerefMut)]
 #[component(on_replace = Self::on_replace)]
 #[reflect(Component, Default)]
@@ -222,8 +222,8 @@ impl GenericMaterial3d {
 	}
 }
 
-/// Automatically put on entities when their [GenericMaterial3d] inserts [MeshMaterial3d].
-/// This is required because [MeshMaterial3d] is generic, and as such can't be used in query parameters for generic materials.
+/// Automatically put on entities when their [`GenericMaterial3d`] inserts [`MeshMaterial3d`].
+/// This is required because [`MeshMaterial3d`] is generic, and as such can't be used in query parameters for generic materials.
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct GenericMaterialApplied;
@@ -247,13 +247,13 @@ impl GenericMaterial {
 		}
 	}
 
-	/// Sets a property to a [DirectGenericValue] containing `value`.
+	/// Sets a property to a [`DirectGenericValue`] containing `value`.
 	pub fn set_property<T: PartialReflect + fmt::Debug + Clone + Send + Sync>(&mut self, property: MaterialProperty<T>, value: T) {
 		self.properties.insert(property.key.to_string(), Box::new(DirectGenericValue(value)));
 	}
 }
 
-/// Contains all necessary information to parse properties of a [GenericMaterial].
+/// Contains all necessary information to parse properties of a [`GenericMaterial`].
 #[derive(Clone)]
 pub struct GenericMaterialView<'w> {
 	pub material: &'w GenericMaterial,
@@ -329,9 +329,9 @@ impl GenericMaterials<'_> {
 	}
 }
 
-/// User-defined property about a material. These are stored in the [GenericMaterial] namespace, so custom properties should be created via an extension trait.
+/// User-defined property about a material. These are stored in the [`GenericMaterial`] namespace, so custom properties should be created via an extension trait.
 ///
-/// To be used with [GenericMaterialView::property] or [GenericMaterialView::get_property].
+/// To be used with [`GenericMaterialView::property`] or [`GenericMaterialView::get_property`].
 ///
 /// # Examples
 /// ```
@@ -359,11 +359,11 @@ impl<T: PartialReflect> MaterialProperty<T> {
 	}
 }
 
-/// Trait meant for `Value` types of different serialization libraries. For example, for the [toml](::toml) crate, this is implemented for [toml::Value](::toml::Value).
+/// Trait meant for `Value` types of different serialization libraries. For example, for the [`toml`](::toml) crate, this is implemented for [`toml::Value`](::toml::Value).
 ///
-/// This is for storing general non type specific data for deserializing on demand, such as in [GenericMaterial] properties.
+/// This is for storing general non type specific data for deserializing on demand, such as in [`GenericMaterial`] properties.
 ///
-/// NOTE: Because of the limitation of not being able to implement foreign traits for foreign types, this is automatically implemented for applicable types implementing the [Deserializer](serde::de::Deserializer) trait.
+/// NOTE: Because of the limitation of not being able to implement foreign traits for foreign types, this is automatically implemented for applicable types implementing the [`Deserializer`](serde::de::Deserializer) trait.
 pub trait GenericValue: fmt::Debug + Send + Sync {
 	fn generic_deserialize(
 		&self,
@@ -383,8 +383,8 @@ impl<T: Deserializer<'static, Error: Send + Sync> + fmt::Debug + Clone + Send + 
 	}
 }
 
-/// Thin wrapper type implementing [GenericValue]. Used for directly passing values to properties.
-/// Usually you should use [GenericMaterial::set_property], which uses this under the hood.
+/// Thin wrapper type implementing [`GenericValue`]. Used for directly passing values to properties.
+/// Usually you should use [`GenericMaterial::set_property`], which uses this under the hood.
 #[derive(Debug, Clone, Deref, DerefMut)]
 pub struct DirectGenericValue<T>(pub T);
 impl<T: PartialReflect + fmt::Debug + Clone + Send + Sync> GenericValue for DirectGenericValue<T> {
@@ -431,7 +431,7 @@ pub enum GenericMaterialError {
 	InField(String, Box<Self>),
 }
 
-/// Version of [ReflectDefault] that returns `Box<dyn ErasedMaterial>` instead of Box<dyn Reflect>.
+/// Version of [`ReflectDefault`] that returns `Box<dyn ErasedMaterial>` instead of Box<dyn Reflect>.
 #[derive(Clone)]
 pub struct ReflectGenericMaterial {
 	default: fn() -> Box<dyn ErasedMaterial>,

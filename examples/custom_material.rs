@@ -52,7 +52,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 	));
 }
 
-/// Material extension to [StandardMaterial] that emulates the wave effect of Quake liquid.
+/// Material extension to [`StandardMaterial`] that emulates the wave effect of Quake liquid.
 pub type QuakeLiquidMaterial = ExtendedMaterial<StandardMaterial, QuakeLiquidMaterialExt>;
 
 #[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]

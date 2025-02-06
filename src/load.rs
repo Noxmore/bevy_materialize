@@ -15,7 +15,7 @@ use serde::{de::DeserializeSeed, Deserialize};
 
 use crate::{prelude::*, GenericMaterialError, GenericMaterialShorthands, GenericValue, ReflectGenericMaterial};
 
-/// Main trait for file format implementation of generic materials. See [TomlMaterialDeserializer] and [JsonMaterialDeserializer] for built-in/example implementations.
+/// Main trait for file format implementation of generic materials. See [`TomlMaterialDeserializer`] and [`JsonMaterialDeserializer`] for built-in/example implementations.
 pub trait MaterialDeserializer: Send + Sync + 'static {
 	type Value: GenericValue + DeserializeOwned + Deserializer<'static, Error: Send + Sync>;
 	type Error: serde::de::Error + Send + Sync;
@@ -229,7 +229,7 @@ impl Default for SimpleGenericMaterialLoaderSettings {
 	}
 }
 
-/// Loads a [GenericMaterial] containing a [StandardMaterial] directly from an image file, putting said image into the `base_color_texture` field of the material.
+/// Loads a [`GenericMaterial`] containing a [`StandardMaterial`] directly from an image file, putting said image into the `base_color_texture` field of the material.
 pub struct SimpleGenericMaterialLoader {
 	pub settings: SimpleGenericMaterialLoaderSettings,
 }

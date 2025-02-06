@@ -105,13 +105,13 @@ impl GenericMaterial {
 	pub const ANIMATION: MaterialProperty<MaterialAnimations> = MaterialProperty::new("animation", default);
 }
 
-/// Stores the states and animations of [GenericMaterial]s.
+/// Stores the states and animations of [`GenericMaterial`]s.
 #[derive(Resource, Reflect, Default)]
 pub struct AnimatedGenericMaterials {
 	pub states: HashMap<AssetId<GenericMaterial>, MaterialAnimations>,
 }
 
-/// Animations stored in a [GenericMaterial].
+/// Animations stored in a [`GenericMaterial`].
 #[derive(Reflect, Debug, Clone, Default)]
 pub struct MaterialAnimations {
 	pub next: Option<NextAnimation>,
@@ -145,7 +145,7 @@ pub type ImagesAnimation = MaterialAnimation<HashMap<String, Vec<Handle<Image>>>
 /// Stores the current frame, and schedules when the next frame should occur.
 #[derive(Debug, Clone)]
 pub struct GenericMaterialAnimationState {
-	/// Is [usize::MAX] by default so it'll wrap around immediately to frame 0.
+	/// Is [`usize::MAX`] by default so it'll wrap around immediately to frame 0.
 	pub current_frame: usize,
 	pub next_frame_time: Instant,
 }
