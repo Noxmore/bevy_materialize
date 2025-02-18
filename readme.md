@@ -19,6 +19,8 @@ fn main_example() {
 }
 ```
 
+## Loading
+
 The API for adding to an entity is quite similar to `MeshMaterial3d<...>`, just with `GenericMaterial3d` storing a `Handle<GenericMaterial>` instead, which you can load from a file.
 ```rust
 use bevy::prelude::*;
@@ -74,6 +76,8 @@ MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(Som
 MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(None);
 ```
 
+## Properties
+
 For retrieving properties from a material, the easiest way is with a `GenericMaterialView`, which you can get via the `GenericMaterials` system param.
 
 It's not as easy as getting it from the `GenericMaterial` because properties need additional references to parse, such as the asset server and type registry.
@@ -106,6 +110,8 @@ pub trait MyMaterialPropertiesExt {
 impl MyMaterialPropertiesExt for GenericMaterial {}
 ```
 
+## Registering
+
 When creating your own custom materials, all you have to do is register them in your app like so.
 ```rust ignore
 App::new()
@@ -121,6 +127,15 @@ App::new()
     .register_generic_material_shorthand::<YourMaterialWithALongName>("YourMaterial")
 ```
 This will allow you to put the shorthand in your file's `type` field instead of the type name.
+
+## Headless
+
+For headless contexts like dedicated servers where you only want properties, but no materials, you can turn off the `bevy_pbr` feature on this crate by disabling default features, and manually adding the loaders you want.
+
+```toml
+bevy_materialize = { version = "...", default-features = false, features = ["toml"] }
+```
+
 
 # Supported Bevy Versions
 | Bevy | bevy_materialize |
