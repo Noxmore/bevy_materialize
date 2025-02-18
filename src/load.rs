@@ -10,10 +10,15 @@ use bevy::reflect::{serde::*, *};
 use bevy::utils::HashMap;
 use bevy::{asset::LoadContext, prelude::*};
 use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use serde::Deserializer;
-use serde::{de::DeserializeSeed, Deserialize};
 
-use crate::{prelude::*, GenericMaterialError, GenericMaterialShorthands, GenericValue, ReflectGenericMaterial};
+use crate::{prelude::*, GenericMaterialError, GenericMaterialShorthands, GenericValue};
+
+#[cfg(feature = "bevy_pbr")]
+use crate::ReflectGenericMaterial;
+#[cfg(feature = "bevy_pbr")]
+use serde::de::DeserializeSeed;
 
 /// Main trait for file format implementation of generic materials. See [`TomlMaterialDeserializer`] and [`JsonMaterialDeserializer`] for built-in/example implementations.
 pub trait MaterialDeserializer: Send + Sync + 'static {
@@ -70,13 +75,15 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 		&self,
 		reader: &mut dyn bevy::asset::io::Reader,
 		_settings: &Self::Settings,
-		load_context: &mut LoadContext,
+		#[allow(unused)] load_context: &mut LoadContext,
 	) -> impl bevy::utils::ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
 		Box::pin(async {
 			#[derive(Deserialize)]
 			struct ParsedGenericMaterial<Value: GenericValue> {
+				#[cfg(feature = "bevy_pbr")]
 				#[serde(rename = "type")]
 				ty: Option<String>,
+				#[cfg(feature = "bevy_pbr")]
 				material: Option<Value>,
 				properties: Option<HashMap<String, Value>>,
 			}
@@ -90,53 +97,58 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 				.deserialize(&input)
 				.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
 
-			let type_name = parsed.ty.as_deref().unwrap_or(StandardMaterial::type_path());
+			#[cfg(feature = "bevy_pbr")]
+			let mat = {
+				let type_name = parsed.ty.as_deref().unwrap_or(StandardMaterial::type_path());
 
-			let registry = self.type_registry.read();
+				let registry = self.type_registry.read();
 
-			let mut registration_candidates = Vec::new();
+				let mut registration_candidates = Vec::new();
 
-			let shorthands = self.shorthands.values.read().unwrap();
-			for (shorthand, reg) in shorthands.iter() {
-				if type_name == shorthand {
-					registration_candidates.push(reg);
+				let shorthands = self.shorthands.values.read().unwrap();
+				for (shorthand, reg) in shorthands.iter() {
+					if type_name == shorthand {
+						registration_candidates.push(reg);
+					}
 				}
-			}
 
-			for reg in registry.iter() {
-				if reg.type_info().type_path() == type_name || reg.type_info().type_path_table().short_path() == type_name {
-					registration_candidates.push(reg);
+				for reg in registry.iter() {
+					if reg.type_info().type_path() == type_name || reg.type_info().type_path_table().short_path() == type_name {
+						registration_candidates.push(reg);
+					}
 				}
-			}
 
-			if registration_candidates.is_empty() {
-				return Err(GenericMaterialError::MaterialTypeNotFound(type_name.to_string()));
-			} else if registration_candidates.len() > 1 {
-				return Err(GenericMaterialError::TooManyTypeCandidates(
-					type_name.to_string(),
-					registration_candidates
-						.into_iter()
-						.map(|reg| reg.type_info().type_path().to_string())
-						.collect(),
-				));
-			}
-			let reg = registration_candidates[0];
+				if registration_candidates.is_empty() {
+					return Err(GenericMaterialError::MaterialTypeNotFound(type_name.to_string()));
+				} else if registration_candidates.len() > 1 {
+					return Err(GenericMaterialError::TooManyTypeCandidates(
+						type_name.to_string(),
+						registration_candidates
+							.into_iter()
+							.map(|reg| reg.type_info().type_path().to_string())
+							.collect(),
+					));
+				}
+				let reg = registration_candidates[0];
 
-			let Some(mut mat) = registry
-				.get_type_data::<ReflectGenericMaterial>(reg.type_id())
-				.map(ReflectGenericMaterial::default)
-			else {
-				panic!("{} isn't a registered generic material", reg.type_info().type_path());
+				let Some(mut mat) = registry
+					.get_type_data::<ReflectGenericMaterial>(reg.type_id())
+					.map(ReflectGenericMaterial::default)
+				else {
+					panic!("{} isn't a registered generic material", reg.type_info().type_path());
+				};
+
+				if let Some(material) = parsed.material {
+					let mut processor = GenericMaterialDeserializationProcessor::Loading(load_context);
+					let data = TypedReflectDeserializer::with_processor(reg, &registry, &mut processor)
+						.deserialize(material)
+						.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
+
+					mat.try_apply(data.as_ref())?;
+				}
+
+				mat
 			};
-
-			if let Some(material) = parsed.material {
-				let mut processor = GenericMaterialDeserializationProcessor::Loading(load_context);
-				let data = TypedReflectDeserializer::with_processor(reg, &registry, &mut processor)
-					.deserialize(material)
-					.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
-
-				mat.try_apply(data.as_ref())?;
-			}
 
 			let mut properties: HashMap<String, Box<dyn GenericValue>> = HashMap::new();
 
@@ -147,6 +159,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 			}
 
 			Ok(GenericMaterial {
+				#[cfg(feature = "bevy_pbr")]
 				handle: mat.add_labeled_asset(load_context, "Material".to_string()),
 				properties,
 			})
@@ -214,12 +227,14 @@ impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_
 #[derive(Debug, Clone)]
 pub struct SimpleGenericMaterialLoaderSettings {
 	/// The `StandardMaterial` to use as a base when loading materials.
+	#[cfg(feature = "bevy_pbr")]
 	pub material: StandardMaterial,
 	pub properties: fn() -> HashMap<String, Box<dyn GenericValue>>,
 }
 impl Default for SimpleGenericMaterialLoaderSettings {
 	fn default() -> Self {
 		Self {
+			#[cfg(feature = "bevy_pbr")]
 			material: StandardMaterial {
 				perceptual_roughness: 1.,
 				..default()
@@ -242,17 +257,20 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 		&self,
 		_reader: &mut dyn bevy::asset::io::Reader,
 		_settings: &Self::Settings,
-		load_context: &mut LoadContext,
+		#[allow(unused)] load_context: &mut LoadContext,
 	) -> impl bevy::utils::ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
 		Box::pin(async {
+			#[cfg(feature = "bevy_pbr")]
 			let path = load_context.asset_path().clone();
 
+			#[cfg(feature = "bevy_pbr")]
 			let material = StandardMaterial {
 				base_color_texture: Some(load_context.load(path)),
 				..self.settings.material.clone()
 			};
 
 			Ok(GenericMaterial {
+				#[cfg(feature = "bevy_pbr")]
 				handle: load_context.add_labeled_asset("Material".to_string(), material).into(),
 				properties: (self.settings.properties)(),
 			})

@@ -5,7 +5,7 @@ use bevy::{
 	utils::{HashMap, HashSet},
 };
 
-use crate::{insert_generic_materials, prelude::*, GenericMaterialError};
+use crate::{prelude::*, GenericMaterialError};
 
 pub struct AnimationPlugin;
 impl Plugin for AnimationPlugin {
@@ -15,8 +15,12 @@ impl Plugin for AnimationPlugin {
 			.register_type::<MaterialAnimations>()
 			.init_resource::<AnimatedGenericMaterials>()
 			.add_systems(Update, Self::animate_materials)
-			.add_systems(PostUpdate, Self::setup_animated_materials.before(insert_generic_materials))
 		;
+
+		#[cfg(feature = "bevy_pbr")]
+		app.add_systems(PostUpdate, Self::setup_animated_materials.before(crate::insert_generic_materials));
+		#[cfg(not(feature = "bevy_pbr"))]
+		app.add_systems(PostUpdate, Self::setup_animated_materials);
 	}
 }
 impl AnimationPlugin {
@@ -61,7 +65,7 @@ impl AnimationPlugin {
 	pub fn animate_materials(
 		mut commands: Commands,
 		mut animated_materials: ResMut<AnimatedGenericMaterials>,
-		generic_materials: Res<Assets<GenericMaterial>>,
+		#[cfg(feature = "bevy_pbr")] generic_materials: Res<Assets<GenericMaterial>>,
 
 		query: Query<(Entity, &GenericMaterial3d)>,
 	) {
@@ -84,6 +88,7 @@ impl AnimationPlugin {
 			}
 
 			// Image switching
+			#[cfg(feature = "bevy_pbr")]
 			if let Some(animation) = &mut animations.images {
 				if animation.state.next_frame_time <= now {
 					animation.advance_frame();

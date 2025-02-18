@@ -2,7 +2,7 @@
 
 use core::str;
 use std::{
-	any::{type_name, Any, TypeId},
+	any::{type_name, TypeId},
 	borrow::Cow,
 	error::Error,
 	fmt::{self},
@@ -10,11 +10,20 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
+#[cfg(feature = "bevy_pbr")]
 use bevy::{
-	asset::{AssetPath, LoadContext, UntypedAssetId},
-	ecs::{component::ComponentId, system::SystemParam, world::DeferredWorld},
+	asset::{LoadContext, UntypedAssetId},
+	ecs::{component::ComponentId, world::DeferredWorld},
+	reflect::{FromType, GetTypeRegistration, ReflectMut, Typed},
+};
+#[cfg(feature = "bevy_pbr")]
+use std::any::Any;
+
+use bevy::{
+	asset::AssetPath,
+	ecs::system::SystemParam,
 	prelude::*,
-	reflect::{serde::TypedReflectDeserializer, ApplyError, FromType, GetTypeRegistration, ReflectMut, TypeRegistration, TypeRegistry, Typed},
+	reflect::{serde::TypedReflectDeserializer, ApplyError, TypeRegistration, TypeRegistry},
 	utils::HashMap,
 };
 use load::{
@@ -54,6 +63,11 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 				shorthands,
 				deserializer: self.deserializer.clone(),
 			})
+		;
+
+		#[cfg(feature = "bevy_pbr")]
+		#[rustfmt::skip]
+		app
 			.register_generic_material::<StandardMaterial>()
 			.add_systems(PreUpdate, reload_generic_materials)
 			.add_systems(PostUpdate, (
@@ -97,6 +111,7 @@ impl Plugin for MaterializeMarkerPlugin {
 // // SYSTEMS
 // ////////////////////////////////////////////////////////////////////////////////
 
+#[cfg(feature = "bevy_pbr")]
 pub fn insert_generic_materials(
 	mut commands: Commands,
 	query: Query<(Entity, &GenericMaterial3d), Without<GenericMaterialApplied>>,
@@ -113,6 +128,7 @@ pub fn insert_generic_materials(
 	}
 }
 
+#[cfg(feature = "bevy_pbr")]
 pub fn reload_generic_materials(
 	mut commands: Commands,
 	mut asset_events: EventReader<AssetEvent<GenericMaterial>>,
@@ -129,6 +145,7 @@ pub fn reload_generic_materials(
 	}
 }
 
+#[cfg(feature = "bevy_pbr")]
 pub fn visibility_material_property(
 	mut query: Query<(&GenericMaterial3d, &mut Visibility), Without<GenericMaterialApplied>>,
 	generic_materials: GenericMaterials,
@@ -147,6 +164,7 @@ pub struct GenericMaterialShorthands {
 	pub values: Arc<RwLock<HashMap<String, TypeRegistration>>>,
 }
 
+#[cfg(feature = "bevy_pbr")]
 pub trait MaterializeAppExt {
 	/// Register a material to be able to be created via [`GenericMaterial`].
 	///
@@ -175,6 +193,7 @@ pub trait MaterializeAppExt {
 	/// ```
 	fn register_generic_material_shorthand<M: GetTypeRegistration>(&mut self, shorthand: impl Into<String>) -> &mut Self;
 }
+#[cfg(feature = "bevy_pbr")]
 impl MaterializeAppExt for App {
 	fn register_generic_material<M: Material + Reflect + Struct + Default + GetTypeRegistration>(&mut self) -> &mut Self {
 		let mut type_registry = self.main().world().resource::<AppTypeRegistry>().write();
@@ -204,10 +223,11 @@ impl MaterializeAppExt for App {
 ///
 /// When removing or replacing this component, the inserted [`MeshMaterial3d`] will be removed.
 #[derive(Component, Reflect, Debug, Clone, PartialEq, Eq, Default, Deref, DerefMut)]
-#[component(on_replace = Self::on_replace)]
+#[cfg_attr(feature = "bevy_pbr", component(on_replace = Self::on_replace))]
 #[reflect(Component, Default)]
 pub struct GenericMaterial3d(pub Handle<GenericMaterial>);
 impl GenericMaterial3d {
+	#[cfg(feature = "bevy_pbr")]
 	fn on_replace(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
 		let generic_material_handle = &world.entity(entity).get::<Self>().unwrap().0;
 		let Some(generic_material) = world.resource::<Assets<GenericMaterial>>().get(generic_material_handle) else { return };
@@ -224,6 +244,7 @@ impl GenericMaterial3d {
 
 /// Automatically put on entities when their [`GenericMaterial3d`] inserts [`MeshMaterial3d`].
 /// This is required because [`MeshMaterial3d`] is generic, and as such can't be used in query parameters for generic materials.
+#[cfg(feature = "bevy_pbr")]
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct GenericMaterialApplied;
@@ -231,6 +252,7 @@ pub struct GenericMaterialApplied;
 /// Material asset containing a type-erased material handle, and generic user-defined properties.
 #[derive(Asset, TypePath, Debug)]
 pub struct GenericMaterial {
+	#[cfg(feature = "bevy_pbr")]
 	pub handle: Box<dyn ErasedMaterialHandle>,
 	// This could be better stored as a dyn PartialReflect with types like DynamicStruct,
 	// but as far as i can tell Bevy's deserialization infrastructure does not support that
@@ -238,8 +260,10 @@ pub struct GenericMaterial {
 }
 impl GenericMaterial {
 	/// Property that changes the visibility component of applied entities to this value.
+	#[cfg(feature = "bevy_pbr")]
 	pub const VISIBILITY: MaterialProperty<Visibility> = MaterialProperty::new("visibility", || Visibility::Inherited);
 
+	#[cfg(feature = "bevy_pbr")]
 	pub fn new(handle: impl Into<Box<dyn ErasedMaterialHandle>>) -> Self {
 		Self {
 			handle: handle.into(),
@@ -432,16 +456,19 @@ pub enum GenericMaterialError {
 }
 
 /// Version of [`ReflectDefault`] that returns `Box<dyn ErasedMaterial>` instead of Box<dyn Reflect>.
+#[cfg(feature = "bevy_pbr")]
 #[derive(Clone)]
 pub struct ReflectGenericMaterial {
 	default: fn() -> Box<dyn ErasedMaterial>,
 }
+#[cfg(feature = "bevy_pbr")]
 impl ReflectGenericMaterial {
 	pub fn default(&self) -> Box<dyn ErasedMaterial> {
 		(self.default)()
 	}
 }
 
+#[cfg(feature = "bevy_pbr")]
 impl<T: ErasedMaterial + Default> FromType<T> for ReflectGenericMaterial {
 	fn from_type() -> Self {
 		Self {
@@ -450,11 +477,13 @@ impl<T: ErasedMaterial + Default> FromType<T> for ReflectGenericMaterial {
 	}
 }
 
+#[cfg(feature = "bevy_pbr")]
 pub trait ErasedMaterial: Send + Sync + Reflect + Struct {
 	// TODO Can't use just `self` because i can't move trait objects.
 	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Box<dyn ErasedMaterialHandle>;
 	fn add_asset(&self, asset_server: &AssetServer) -> Box<dyn ErasedMaterialHandle>;
 }
+#[cfg(feature = "bevy_pbr")]
 impl<M: Material + Reflect + Struct + Clone> ErasedMaterial for M {
 	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Box<dyn ErasedMaterialHandle> {
 		load_context.add_labeled_asset(label, self.clone()).into()
@@ -464,12 +493,14 @@ impl<M: Material + Reflect + Struct + Clone> ErasedMaterial for M {
 		asset_server.add(self.clone()).into()
 	}
 }
+#[cfg(feature = "bevy_pbr")]
 impl<M: Material + Reflect + Struct + Clone> From<M> for Box<dyn ErasedMaterial> {
 	fn from(value: M) -> Self {
 		Box::new(value)
 	}
 }
 
+#[cfg(feature = "bevy_pbr")]
 pub trait ErasedMaterialHandle: Send + Sync + fmt::Debug + Any {
 	fn clone_into_erased(&self) -> Box<dyn ErasedMaterialHandle>;
 	fn insert(&self, entity: EntityWorldMut);
@@ -480,6 +511,7 @@ pub trait ErasedMaterialHandle: Send + Sync + fmt::Debug + Any {
 	#[allow(clippy::type_complexity)]
 	fn modify_with_commands(&self, commands: &mut Commands, modifier: Box<dyn FnOnce(Option<&mut dyn Reflect>) + Send + Sync>);
 }
+#[cfg(feature = "bevy_pbr")]
 impl<M: Material + Reflect> ErasedMaterialHandle for Handle<M> {
 	// A lot of cloning here! Fun!
 	fn clone_into_erased(&self) -> Box<dyn ErasedMaterialHandle> {
@@ -517,17 +549,20 @@ impl<M: Material + Reflect> ErasedMaterialHandle for Handle<M> {
 		});
 	}
 }
+#[cfg(feature = "bevy_pbr")]
 impl<M: Material + Reflect> From<Handle<M>> for Box<dyn ErasedMaterialHandle> {
 	fn from(value: Handle<M>) -> Self {
 		Box::new(value)
 	}
 }
+#[cfg(feature = "bevy_pbr")]
 impl Clone for Box<dyn ErasedMaterialHandle> {
 	fn clone(&self) -> Self {
 		self.clone_into_erased()
 	}
 }
 
+#[cfg(feature = "bevy_pbr")]
 impl dyn ErasedMaterialHandle {
 	/// Attempts to modify a single field in the material. Writes an error out if something fails.
 	pub fn modify_field_with_commands<T: Reflect + Typed + FromReflect + GetTypeRegistration>(
@@ -579,6 +614,7 @@ fn direct_values() {
 
 	fn setup(mut assets: ResMut<Assets<GenericMaterial>>) {
 		let mut material = GenericMaterial {
+			#[cfg(feature = "bevy_pbr")]
 			handle: Handle::<StandardMaterial>::default().into(),
 			properties: default(),
 		};
