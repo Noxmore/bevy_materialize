@@ -251,6 +251,7 @@ pub struct GenericMaterialApplied;
 
 /// Material asset containing a type-erased material handle, and generic user-defined properties.
 #[derive(Asset, TypePath, Debug)]
+#[cfg_attr(not(feature = "bevy_pbr"), derive(Default))]
 pub struct GenericMaterial {
 	#[cfg(feature = "bevy_pbr")]
 	pub handle: Box<dyn ErasedMaterialHandle>,
