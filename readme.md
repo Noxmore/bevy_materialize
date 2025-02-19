@@ -58,17 +58,18 @@ collision = true
 sounds = "wood"
 ```
 
-For simplicity, you can also load a `GenericMaterial` directly from an image file, which puts a `StandardMaterial` internally. You can change the default `StandardMaterial` that it uses via
+For simplicity, you can also load a `GenericMaterial` directly from an image file, which by default puts a `StandardMaterial` internally. You can change the material that it uses via
 ```rust
 use bevy::prelude::*;
 use bevy_materialize::{prelude::*, load::SimpleGenericMaterialLoaderSettings};
 
 MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(Some(SimpleGenericMaterialLoaderSettings {
-    material: StandardMaterial {
+    material: |image| StandardMaterial {
+        base_color_texture: Some(image),
         // Now it's super shiny!
         perceptual_roughness: 0.1,
         ..default()
-    },
+    }.into(),
     ..default()
 }));
 

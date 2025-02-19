@@ -16,7 +16,7 @@ use serde::Deserializer;
 use crate::{prelude::*, GenericMaterialError, GenericMaterialShorthands, GenericValue};
 
 #[cfg(feature = "bevy_pbr")]
-use crate::ReflectGenericMaterial;
+use crate::{ErasedMaterial, ReflectGenericMaterial};
 #[cfg(feature = "bevy_pbr")]
 use serde::de::DeserializeSeed;
 
@@ -226,25 +226,29 @@ impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_
 
 #[derive(Debug, Clone)]
 pub struct SimpleGenericMaterialLoaderSettings {
-	/// The `StandardMaterial` to use as a base when loading materials.
+	/// A function that provides the underlying material given the loaded image. Default is a [`StandardMaterial`] with `perceptual_roughness` set to 1.
 	#[cfg(feature = "bevy_pbr")]
-	pub material: StandardMaterial,
+	pub material: fn(Handle<Image>) -> Box<dyn ErasedMaterial>,
 	pub properties: fn() -> HashMap<String, Box<dyn GenericValue>>,
 }
 impl Default for SimpleGenericMaterialLoaderSettings {
 	fn default() -> Self {
 		Self {
 			#[cfg(feature = "bevy_pbr")]
-			material: StandardMaterial {
-				perceptual_roughness: 1.,
-				..default()
+			material: |image| {
+				StandardMaterial {
+					base_color_texture: Some(image),
+					perceptual_roughness: 1.,
+					..default()
+				}
+				.into()
 			},
 			properties: HashMap::new,
 		}
 	}
 }
 
-/// Loads a [`GenericMaterial`] containing a [`StandardMaterial`] directly from an image file, putting said image into the `base_color_texture` field of the material.
+/// Loads a [`GenericMaterial`] directly from an image file. By default it loads a [`StandardMaterial`], putting the image into its `base_color_texture` field, and setting `perceptual_roughness` set to 1.
 pub struct SimpleGenericMaterialLoader {
 	pub settings: SimpleGenericMaterialLoaderSettings,
 }
@@ -264,14 +268,11 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 			let path = load_context.asset_path().clone();
 
 			#[cfg(feature = "bevy_pbr")]
-			let material = StandardMaterial {
-				base_color_texture: Some(load_context.load(path)),
-				..self.settings.material.clone()
-			};
+			let material = (self.settings.material)(load_context.load(path));
 
 			Ok(GenericMaterial {
 				#[cfg(feature = "bevy_pbr")]
-				handle: load_context.add_labeled_asset("Material".to_string(), material).into(),
+				handle: material.add_labeled_asset(load_context, "Material".to_string()),
 				properties: (self.settings.properties)(),
 			})
 		})
