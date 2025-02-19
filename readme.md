@@ -76,6 +76,16 @@ MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(Som
 MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(None);
 ```
 
+## File Extensions
+Currently, the supported file extensions are: (Replace `toml` with the file format you're using)
+- `toml`
+- `mat`
+- `mat.toml`
+- `material`
+- `material.toml`
+
+Feel free to just use the one you like the most.
+
 ## Properties
 
 For retrieving properties from a material, the easiest way is with a `GenericMaterialView`, which you can get via the `GenericMaterials` system param.
