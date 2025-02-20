@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bevy::{
 	prelude::*,
@@ -27,6 +27,7 @@ impl AnimationPlugin {
 	pub fn setup_animated_materials(
 		mut animated_materials: ResMut<AnimatedGenericMaterials>,
 		generic_materials: GenericMaterials,
+		time: Res<Time>,
 
 		mut asset_events: EventReader<AssetEvent<GenericMaterial>>,
 
@@ -55,7 +56,7 @@ impl AnimationPlugin {
 
 			// Make next not switch instantly, slightly hacky.
 			if let Some(animation) = &mut animations.next {
-				animation.state.next_frame_time = animation.new_next_frame_time();
+				animation.state.next_frame_time = animation.new_next_frame_time(time.elapsed());
 			}
 
 			animated_materials.states.insert(view.id, animations);
@@ -66,16 +67,17 @@ impl AnimationPlugin {
 		mut commands: Commands,
 		mut animated_materials: ResMut<AnimatedGenericMaterials>,
 		#[cfg(feature = "bevy_pbr")] generic_materials: Res<Assets<GenericMaterial>>,
+		time: Res<Time>,
 
 		query: Query<(Entity, &GenericMaterial3d)>,
 	) {
-		let now = Instant::now();
-
+		let now = time.elapsed();
+		
 		for (id, animations) in &mut animated_materials.states {
 			// Material switching
 			if let Some(animation) = &mut animations.next {
 				if animation.state.next_frame_time <= now {
-					animation.advance_frame();
+					animation.advance_frame(now);
 
 					for (entity, generic_material_3d) in &query {
 						if generic_material_3d.id() != *id {
@@ -91,7 +93,7 @@ impl AnimationPlugin {
 			#[cfg(feature = "bevy_pbr")]
 			if let Some(animation) = &mut animations.images {
 				if animation.state.next_frame_time <= now {
-					animation.advance_frame();
+					animation.advance_frame(now);
 					let Some(generic_material) = generic_materials.get(*id) else { continue };
 
 					for (field_name, frames) in &animation.value {
@@ -133,14 +135,14 @@ pub struct MaterialAnimation<T> {
 }
 impl<T> MaterialAnimation<T> {
 	/// Increases current frame and updates when the next frame is scheduled.
-	pub fn advance_frame(&mut self) {
+	pub fn advance_frame(&mut self, current_time: Duration) {
 		self.state.current_frame = self.state.current_frame.wrapping_add(1);
-		self.state.next_frame_time = self.new_next_frame_time();
+		self.state.next_frame_time = self.new_next_frame_time(current_time);
 	}
 
-	/// If the frame advances now, this returns when in the future the frame should advance again.
-	pub fn new_next_frame_time(&self) -> Instant {
-		Instant::now() + Duration::from_secs_f32(1. / self.fps)
+	/// This returns when in the future (from `current_time`) the frame should advance again.
+	pub fn new_next_frame_time(&self, current_time: Duration) -> Duration {
+		current_time + Duration::from_secs_f32(1. / self.fps)
 	}
 }
 
@@ -152,13 +154,14 @@ pub type ImagesAnimation = MaterialAnimation<HashMap<String, Vec<Handle<Image>>>
 pub struct GenericMaterialAnimationState {
 	/// Is [`usize::MAX`] by default so it'll wrap around immediately to frame 0.
 	pub current_frame: usize,
-	pub next_frame_time: Instant,
+	/// The elapsed time from program start that the next frame will appear.
+	pub next_frame_time: Duration,
 }
 impl Default for GenericMaterialAnimationState {
 	fn default() -> Self {
 		Self {
 			current_frame: usize::MAX,
-			next_frame_time: Instant::now(),
+			next_frame_time: Duration::default(),
 		}
 	}
 }
