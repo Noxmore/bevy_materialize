@@ -151,4 +151,4 @@ bevy_materialize = { version = "...", default-features = false, features = ["tom
 # Supported Bevy Versions
 | Bevy | bevy_materialize |
 -|-
-| 0.15 | 0.1-0.2 |
+| 0.15 | 0.1-0.3 |
