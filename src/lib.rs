@@ -608,7 +608,11 @@ fn direct_values() {
 	App::new()
 		.register_type::<StandardMaterial>()
 		.register_type::<Visibility>()
-		.add_plugins((AssetPlugin::default(), MaterializePlugin::new(crate::load::TomlMaterialDeserializer)))
+		.add_plugins((
+			AssetPlugin::default(),
+			bevy::time::TimePlugin,
+			MaterializePlugin::new(crate::load::TomlMaterialDeserializer),
+		))
 		.add_systems(Startup, setup)
 		.add_systems(PostStartup, test)
 		.run();
