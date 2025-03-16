@@ -72,7 +72,7 @@ impl AnimationPlugin {
 		query: Query<(Entity, &GenericMaterial3d)>,
 	) {
 		let now = time.elapsed();
-		
+
 		for (id, animations) in &mut animated_materials.states {
 			// Material switching
 			if let Some(animation) = &mut animations.next {
