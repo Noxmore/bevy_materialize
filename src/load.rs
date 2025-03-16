@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use ::serde;
 use bevy::asset::{AssetLoader, AssetPath};
-use bevy::image::ImageLoader;
+use bevy::image::{ImageFormatSetting, ImageLoader, ImageLoaderSettings};
 use bevy::reflect::{serde::*, *};
 use bevy::utils::HashMap;
 use bevy::{asset::LoadContext, prelude::*};
@@ -68,13 +68,13 @@ pub struct GenericMaterialLoader<D: MaterialDeserializer> {
 }
 impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 	type Asset = GenericMaterial;
-	type Settings = ();
+	type Settings = ImageLoaderSettings;
 	type Error = GenericMaterialError;
 
 	fn load(
 		&self,
 		reader: &mut dyn bevy::asset::io::Reader,
-		_settings: &Self::Settings,
+		settings: &Self::Settings,
 		#[allow(unused)] load_context: &mut LoadContext,
 	) -> impl bevy::utils::ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
 		Box::pin(async {
@@ -139,7 +139,10 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 				};
 
 				if let Some(material) = parsed.material {
-					let mut processor = GenericMaterialDeserializationProcessor::Loading(load_context);
+					let mut processor = GenericMaterialDeserializationProcessor::Loading {
+						load_context,
+						image_settings: clone_image_loader_settings(settings),
+					};
 					let data = TypedReflectDeserializer::with_processor(reg, &registry, &mut processor)
 						.deserialize(material)
 						.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
@@ -172,7 +175,10 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 }
 
 pub enum GenericMaterialDeserializationProcessor<'w, 'l> {
-	Loading(&'l mut LoadContext<'w>),
+	Loading {
+		image_settings: ImageLoaderSettings,
+		load_context: &'l mut LoadContext<'w>,
+	},
 	Loaded {
 		asset_server: &'w AssetServer,
 		path: Option<&'l AssetPath<'static>>,
@@ -181,15 +187,18 @@ pub enum GenericMaterialDeserializationProcessor<'w, 'l> {
 impl GenericMaterialDeserializationProcessor<'_, '_> {
 	pub fn asset_path(&self) -> Option<&AssetPath<'static>> {
 		match self {
-			Self::Loading(load_context) => Some(load_context.asset_path()),
-			Self::Loaded { asset_server: _, path } => *path,
+			Self::Loading { load_context, .. } => Some(load_context.asset_path()),
+			Self::Loaded { path, .. } => *path,
 		}
 	}
 
 	pub fn load<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
 		match self {
-			Self::Loading(load_context) => load_context.load(path),
-			Self::Loaded { asset_server, path: _ } => asset_server.load(path),
+			Self::Loading {
+				load_context,
+				image_settings,
+			} => load_context.loader().with_settings(set_image_loader_settings(image_settings)).load(path),
+			Self::Loaded { asset_server, .. } => asset_server.load(path),
 		}
 	}
 }
@@ -248,27 +257,46 @@ impl Default for SimpleGenericMaterialLoaderSettings {
 	}
 }
 
+/// TODO: remove in 0.16
+fn clone_image_loader_settings(settings: &ImageLoaderSettings) -> ImageLoaderSettings {
+	ImageLoaderSettings {
+		format: match settings.format {
+			ImageFormatSetting::FromExtension => ImageFormatSetting::FromExtension,
+			ImageFormatSetting::Format(format) => ImageFormatSetting::Format(format),
+			ImageFormatSetting::Guess => ImageFormatSetting::Guess,
+		},
+		is_srgb: settings.is_srgb,
+		sampler: settings.sampler.clone(),
+		asset_usage: settings.asset_usage,
+	}
+}
+
+fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut ImageLoaderSettings) {
+	let settings = clone_image_loader_settings(settings);
+	move |s| *s = clone_image_loader_settings(&settings)
+}
+
 /// Loads a [`GenericMaterial`] directly from an image file. By default it loads a [`StandardMaterial`], putting the image into its `base_color_texture` field, and setting `perceptual_roughness` set to 1.
 pub struct SimpleGenericMaterialLoader {
 	pub settings: SimpleGenericMaterialLoaderSettings,
 }
 impl AssetLoader for SimpleGenericMaterialLoader {
 	type Asset = GenericMaterial;
-	type Settings = ();
+	type Settings = ImageLoaderSettings;
 	type Error = Infallible;
 
 	fn load(
 		&self,
 		_reader: &mut dyn bevy::asset::io::Reader,
-		_settings: &Self::Settings,
+		settings: &Self::Settings,
 		#[allow(unused)] load_context: &mut LoadContext,
 	) -> impl bevy::utils::ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
-		Box::pin(async {
+		Box::pin(async move {
 			#[cfg(feature = "bevy_pbr")]
 			let path = load_context.asset_path().clone();
 
 			#[cfg(feature = "bevy_pbr")]
-			let material = (self.settings.material)(load_context.load(path));
+			let material = (self.settings.material)(load_context.loader().with_settings(set_image_loader_settings(settings)).load(path));
 
 			Ok(GenericMaterial {
 				#[cfg(feature = "bevy_pbr")]
