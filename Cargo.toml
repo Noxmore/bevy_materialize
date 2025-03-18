@@ -11,7 +11,6 @@ categories = ["game-development"]
 [dependencies]
 bevy = { version = "0.15", default-features = false, features = [
 	"bevy_asset",
-	"png",
 ] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", optional = true }
@@ -22,6 +21,7 @@ toml = { version = "0.8", optional = true }
 version = "0.15"
 features = [
 	"bevy_winit",
+	"png",
 ]
 
 [[example]]
@@ -34,6 +34,7 @@ required-features = ["toml", "bevy_pbr"]
 
 [features]
 default = ["bevy_pbr", "toml"]
-bevy_pbr = ["bevy/bevy_pbr"]
+bevy_pbr = ["bevy/bevy_pbr", "bevy_image"]
+bevy_image = ["bevy/bevy_image"]
 json = ["dep:serde_json"]
 toml = ["dep:toml"]

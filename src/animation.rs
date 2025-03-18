@@ -147,7 +147,10 @@ impl<T> MaterialAnimation<T> {
 }
 
 pub type NextAnimation = MaterialAnimation<Handle<GenericMaterial>>;
+#[cfg(feature = "bevy_image")]
 pub type ImagesAnimation = MaterialAnimation<HashMap<String, Vec<Handle<Image>>>>;
+#[cfg(not(feature = "bevy_image"))]
+pub type ImagesAnimation = MaterialAnimation<HashMap<String, Vec<String>>>;
 
 /// Stores the current frame, and schedules when the next frame should occur.
 #[derive(Debug, Clone)]

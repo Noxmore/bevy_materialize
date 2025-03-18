@@ -1,3 +1,4 @@
+#[cfg(feature = "bevy_image")]
 use std::any::TypeId;
 use std::convert::Infallible;
 use std::str;
@@ -5,6 +6,7 @@ use std::sync::Arc;
 
 use ::serde;
 use bevy::asset::{AssetLoader, AssetPath};
+#[cfg(feature = "bevy_image")]
 use bevy::image::{ImageFormatSetting, ImageLoader, ImageLoaderSettings};
 use bevy::reflect::{serde::*, *};
 use bevy::utils::HashMap;
@@ -68,13 +70,16 @@ pub struct GenericMaterialLoader<D: MaterialDeserializer> {
 }
 impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 	type Asset = GenericMaterial;
+	#[cfg(feature = "bevy_image")]
 	type Settings = ImageLoaderSettings;
+	#[cfg(not(feature = "bevy_image"))]
+	type Settings = ();
 	type Error = GenericMaterialError;
 
 	fn load(
 		&self,
 		reader: &mut dyn bevy::asset::io::Reader,
-		settings: &Self::Settings,
+		#[allow(unused)] settings: &Self::Settings,
 		#[allow(unused)] load_context: &mut LoadContext,
 	) -> impl bevy::utils::ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
 		Box::pin(async {
@@ -176,6 +181,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 
 pub enum GenericMaterialDeserializationProcessor<'w, 'l> {
 	Loading {
+		#[cfg(feature = "bevy_image")]
 		image_settings: ImageLoaderSettings,
 		load_context: &'l mut LoadContext<'w>,
 	},
@@ -194,10 +200,14 @@ impl GenericMaterialDeserializationProcessor<'_, '_> {
 
 	pub fn load<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
 		match self {
+			#[cfg(feature = "bevy_image")]
 			Self::Loading {
 				load_context,
 				image_settings,
 			} => load_context.loader().with_settings(set_image_loader_settings(image_settings)).load(path),
+			#[cfg(not(feature = "bevy_image"))]
+			Self::Loading { load_context } => load_context.load(path),
+
 			Self::Loaded { asset_server, .. } => asset_server.load(path),
 		}
 	}
@@ -205,10 +215,11 @@ impl GenericMaterialDeserializationProcessor<'_, '_> {
 impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_, '_> {
 	fn try_deserialize<'de, D: serde::Deserializer<'de>>(
 		&mut self,
-		registration: &TypeRegistration,
+		#[allow(unused)] registration: &TypeRegistration,
 		_registry: &TypeRegistry,
 		deserializer: D,
 	) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error> {
+		#[cfg(feature = "bevy_image")]
 		if let Some(asset_path) = self.asset_path() {
 			// TODO good way to register loadable assets
 
@@ -258,6 +269,7 @@ impl Default for SimpleGenericMaterialLoaderSettings {
 }
 
 /// TODO: remove in 0.16
+#[cfg(feature = "bevy_image")]
 fn clone_image_loader_settings(settings: &ImageLoaderSettings) -> ImageLoaderSettings {
 	ImageLoaderSettings {
 		format: match settings.format {
@@ -271,6 +283,7 @@ fn clone_image_loader_settings(settings: &ImageLoaderSettings) -> ImageLoaderSet
 	}
 }
 
+#[cfg(feature = "bevy_image")]
 fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut ImageLoaderSettings) {
 	let settings = clone_image_loader_settings(settings);
 	move |s| *s = clone_image_loader_settings(&settings)
@@ -282,13 +295,16 @@ pub struct SimpleGenericMaterialLoader {
 }
 impl AssetLoader for SimpleGenericMaterialLoader {
 	type Asset = GenericMaterial;
+	#[cfg(feature = "bevy_image")]
 	type Settings = ImageLoaderSettings;
+	#[cfg(not(feature = "bevy_image"))]
+	type Settings = ();
 	type Error = Infallible;
 
 	fn load(
 		&self,
 		_reader: &mut dyn bevy::asset::io::Reader,
-		settings: &Self::Settings,
+		#[allow(unused)] settings: &Self::Settings,
 		#[allow(unused)] load_context: &mut LoadContext,
 	) -> impl bevy::utils::ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
 		Box::pin(async move {
@@ -306,7 +322,16 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 		})
 	}
 
+	#[cfg(feature = "bevy_image")]
 	fn extensions(&self) -> &[&str] {
 		ImageLoader::SUPPORTED_FILE_EXTENSIONS
+	}
+	#[cfg(not(feature = "bevy_image"))]
+	fn extensions(&self) -> &[&str] {
+		// Since we aren't actually loading any images, let's just say we support them all.
+		&[
+			"basis", "bmp", "dds", "ff", "farbfeld", "gif", "exr", "hdr", "ico", "jpg", "jpeg", "ktx2", "pam", "pbm", "pgm", "ppm", "png", "qoi",
+			"tga", "tif", "tiff", "webp",
+		]
 	}
 }
