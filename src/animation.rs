@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use bevy::{
+	platform_support::collections::{HashMap, HashSet},
 	prelude::*,
-	utils::{HashMap, HashSet},
 };
 
 use crate::{prelude::*, GenericMaterialError};

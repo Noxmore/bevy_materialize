@@ -8,8 +8,9 @@ use ::serde;
 use bevy::asset::{AssetLoader, AssetPath};
 #[cfg(feature = "bevy_image")]
 use bevy::image::{ImageFormatSetting, ImageLoader, ImageLoaderSettings};
+use bevy::platform_support::collections::HashMap;
 use bevy::reflect::{serde::*, *};
-use bevy::utils::HashMap;
+use bevy::tasks::ConditionalSendFuture;
 use bevy::{asset::LoadContext, prelude::*};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -81,7 +82,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 		reader: &mut dyn bevy::asset::io::Reader,
 		#[allow(unused)] settings: &Self::Settings,
 		#[allow(unused)] load_context: &mut LoadContext,
-	) -> impl bevy::utils::ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+	) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
 		Box::pin(async {
 			#[derive(Deserialize)]
 			struct ParsedGenericMaterial<Value: GenericValue> {
@@ -158,7 +159,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 				mat
 			};
 
-			let mut properties: HashMap<String, Box<dyn GenericValue>> = HashMap::new();
+			let mut properties: HashMap<String, Box<dyn GenericValue>> = HashMap::default();
 
 			if let Some(parsed_properties) = parsed.properties {
 				for (key, value) in parsed_properties {
@@ -168,7 +169,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 
 			Ok(GenericMaterial {
 				#[cfg(feature = "bevy_pbr")]
-				handle: mat.add_labeled_asset(load_context, "Material".to_string()),
+				handle: mat.add_labeled_asset(load_context, "Material".to_string()).unwrap(),
 				properties,
 			})
 		})
@@ -263,7 +264,7 @@ impl Default for SimpleGenericMaterialLoaderSettings {
 				}
 				.into()
 			},
-			properties: HashMap::new,
+			properties: HashMap::default,
 		}
 	}
 }
@@ -306,7 +307,7 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 		_reader: &mut dyn bevy::asset::io::Reader,
 		#[allow(unused)] settings: &Self::Settings,
 		#[allow(unused)] load_context: &mut LoadContext,
-	) -> impl bevy::utils::ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
+	) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
 		Box::pin(async move {
 			#[cfg(feature = "bevy_pbr")]
 			let path = load_context.asset_path().clone();
@@ -316,7 +317,7 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 
 			Ok(GenericMaterial {
 				#[cfg(feature = "bevy_pbr")]
-				handle: material.add_labeled_asset(load_context, "Material".to_string()),
+				handle: material.add_labeled_asset(load_context, "Material".to_string()).unwrap(),
 				properties: (self.settings.properties)(),
 			})
 		})

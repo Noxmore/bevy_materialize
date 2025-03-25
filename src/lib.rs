@@ -12,8 +12,9 @@ use std::{
 
 #[cfg(feature = "bevy_pbr")]
 use bevy::{
+	asset::DuplicateLabelAssetError,
 	asset::{LoadContext, UntypedAssetId},
-	ecs::{component::ComponentId, world::DeferredWorld},
+	ecs::{component::HookContext, world::DeferredWorld},
 	reflect::{FromType, GetTypeRegistration, ReflectMut, Typed},
 };
 #[cfg(feature = "bevy_pbr")]
@@ -22,9 +23,9 @@ use std::any::Any;
 use bevy::{
 	asset::AssetPath,
 	ecs::system::SystemParam,
+	platform_support::collections::HashMap,
 	prelude::*,
 	reflect::{serde::TypedReflectDeserializer, ApplyError, TypeRegistration, TypeRegistry},
-	utils::HashMap,
 };
 use load::{
 	GenericMaterialDeserializationProcessor, GenericMaterialLoader, MaterialDeserializer, SimpleGenericMaterialLoader,
@@ -228,13 +229,13 @@ impl MaterializeAppExt for App {
 pub struct GenericMaterial3d(pub Handle<GenericMaterial>);
 impl GenericMaterial3d {
 	#[cfg(feature = "bevy_pbr")]
-	fn on_replace(mut world: DeferredWorld, entity: Entity, _id: ComponentId) {
-		let generic_material_handle = &world.entity(entity).get::<Self>().unwrap().0;
+	fn on_replace(mut world: DeferredWorld, ctx: HookContext) {
+		let generic_material_handle = &world.entity(ctx.entity).get::<Self>().unwrap().0;
 		let Some(generic_material) = world.resource::<Assets<GenericMaterial>>().get(generic_material_handle) else { return };
 		let material_handle = generic_material.handle.clone();
 
 		world.commands().queue(move |world: &mut World| {
-			let Ok(mut entity) = world.get_entity_mut(entity) else { return };
+			let Ok(mut entity) = world.get_entity_mut(ctx.entity) else { return };
 
 			entity.remove::<GenericMaterialApplied>();
 			material_handle.remove(entity);
@@ -268,7 +269,7 @@ impl GenericMaterial {
 	pub fn new(handle: impl Into<Box<dyn ErasedMaterialHandle>>) -> Self {
 		Self {
 			handle: handle.into(),
-			properties: HashMap::new(),
+			properties: HashMap::default(),
 		}
 	}
 
@@ -481,13 +482,13 @@ impl<T: ErasedMaterial + Default> FromType<T> for ReflectGenericMaterial {
 #[cfg(feature = "bevy_pbr")]
 pub trait ErasedMaterial: Send + Sync + Reflect + Struct {
 	// TODO Can't use just `self` because i can't move trait objects.
-	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Box<dyn ErasedMaterialHandle>;
+	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Result<Box<dyn ErasedMaterialHandle>, DuplicateLabelAssetError>;
 	fn add_asset(&self, asset_server: &AssetServer) -> Box<dyn ErasedMaterialHandle>;
 }
 #[cfg(feature = "bevy_pbr")]
 impl<M: Material + Reflect + Struct + Clone> ErasedMaterial for M {
-	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Box<dyn ErasedMaterialHandle> {
-		load_context.add_labeled_asset(label, self.clone()).into()
+	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Result<Box<dyn ErasedMaterialHandle>, DuplicateLabelAssetError> {
+		load_context.add_labeled_asset(label, self.clone()).map(Into::into)
 	}
 
 	fn add_asset(&self, asset_server: &AssetServer) -> Box<dyn ErasedMaterialHandle> {
