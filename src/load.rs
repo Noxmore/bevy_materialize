@@ -7,7 +7,7 @@ use std::sync::Arc;
 use ::serde;
 use bevy::asset::{AssetLoader, AssetPath};
 #[cfg(feature = "bevy_image")]
-use bevy::image::{ImageFormatSetting, ImageLoader, ImageLoaderSettings};
+use bevy::image::{ImageLoader, ImageLoaderSettings};
 use bevy::platform_support::collections::HashMap;
 use bevy::reflect::{serde::*, *};
 use bevy::tasks::ConditionalSendFuture;
@@ -147,7 +147,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 				if let Some(material) = parsed.material {
 					let mut processor = GenericMaterialDeserializationProcessor::Loading {
 						load_context,
-						image_settings: clone_image_loader_settings(settings),
+						image_settings: settings.clone(),
 					};
 					let data = TypedReflectDeserializer::with_processor(reg, &registry, &mut processor)
 						.deserialize(material)
@@ -269,25 +269,10 @@ impl Default for SimpleGenericMaterialLoaderSettings {
 	}
 }
 
-/// TODO: remove in 0.16
-#[cfg(feature = "bevy_image")]
-fn clone_image_loader_settings(settings: &ImageLoaderSettings) -> ImageLoaderSettings {
-	ImageLoaderSettings {
-		format: match settings.format {
-			ImageFormatSetting::FromExtension => ImageFormatSetting::FromExtension,
-			ImageFormatSetting::Format(format) => ImageFormatSetting::Format(format),
-			ImageFormatSetting::Guess => ImageFormatSetting::Guess,
-		},
-		is_srgb: settings.is_srgb,
-		sampler: settings.sampler.clone(),
-		asset_usage: settings.asset_usage,
-	}
-}
-
 #[cfg(feature = "bevy_image")]
 fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut ImageLoaderSettings) {
-	let settings = clone_image_loader_settings(settings);
-	move |s| *s = clone_image_loader_settings(&settings)
+	let settings = settings.clone();
+	move |s| *s = settings.clone()
 }
 
 /// Loads a [`GenericMaterial`] directly from an image file. By default it loads a [`StandardMaterial`], putting the image into its `base_color_texture` field, and setting `perceptual_roughness` set to 1.
