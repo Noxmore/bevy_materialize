@@ -9,9 +9,9 @@ readme = "readme.md"
 categories = ["game-development"]
 
 [dependencies]
-bevy = { version = "0.16.0-rc.2", default-features = false, features = [
-	"bevy_asset",
-	"bevy_log",
+bevy = { version = "0.16.0-rc.3", default-features = false, features = [
+    "bevy_asset",
+    "bevy_log",
 ] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", optional = true }
@@ -19,11 +19,8 @@ thiserror = "2"
 toml = { version = "0.8", optional = true }
 
 [dev-dependencies.bevy]
-version = "0.16.0-rc.2"
-features = [
-	"bevy_winit",
-	"png",
-]
+version = "0.16.0-rc.3"
+features = ["bevy_winit", "png"]
 
 [[example]]
 name = "example_json"

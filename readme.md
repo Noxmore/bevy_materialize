@@ -104,7 +104,7 @@ fn retrieve_properties_example(
     for view in materials.iter() {
         // The type returned is based on the generic of the property. For example, VISIBILITY is a MaterialProperty<Visibility>.
         let _: Result<Visibility, GenericMaterialError> = view.get_property(GenericMaterial::VISIBILITY);
-    
+
         // Like get_property(), but if anything goes wrong, returns the default value instead an error.
         let _: Visibility = view.property(GenericMaterial::VISIBILITY);
     }
@@ -151,4 +151,5 @@ bevy_materialize = { version = "...", default-features = false, features = ["tom
 # Supported Bevy Versions
 | Bevy | bevy_materialize |
 -|-
+| 0.16-rc.3 | master |
 | 0.15 | 0.1-0.4 |
