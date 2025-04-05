@@ -12,7 +12,6 @@ use std::{
 
 #[cfg(feature = "bevy_pbr")]
 use bevy::{
-	asset::DuplicateLabelAssetError,
 	asset::{LoadContext, UntypedAssetId},
 	ecs::{component::HookContext, world::DeferredWorld},
 	reflect::{FromType, GetTypeRegistration, ReflectMut, Typed},
@@ -482,13 +481,13 @@ impl<T: ErasedMaterial + Default> FromType<T> for ReflectGenericMaterial {
 #[cfg(feature = "bevy_pbr")]
 pub trait ErasedMaterial: Send + Sync + Reflect + Struct {
 	// TODO Can't use just `self` because i can't move trait objects.
-	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Result<Box<dyn ErasedMaterialHandle>, DuplicateLabelAssetError>;
+	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Box<dyn ErasedMaterialHandle>;
 	fn add_asset(&self, asset_server: &AssetServer) -> Box<dyn ErasedMaterialHandle>;
 }
 #[cfg(feature = "bevy_pbr")]
 impl<M: Material + Reflect + Struct + Clone> ErasedMaterial for M {
-	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Result<Box<dyn ErasedMaterialHandle>, DuplicateLabelAssetError> {
-		load_context.add_labeled_asset(label, self.clone()).map(Into::into)
+	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Box<dyn ErasedMaterialHandle> {
+		load_context.add_labeled_asset(label, self.clone()).into()
 	}
 
 	fn add_asset(&self, asset_server: &AssetServer) -> Box<dyn ErasedMaterialHandle> {

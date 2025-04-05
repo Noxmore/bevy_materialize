@@ -169,7 +169,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 
 			Ok(GenericMaterial {
 				#[cfg(feature = "bevy_pbr")]
-				handle: mat.add_labeled_asset(load_context, "Material".to_string()).unwrap(),
+				handle: mat.add_labeled_asset(load_context, "Material".to_string()),
 				properties,
 			})
 		})
@@ -302,7 +302,7 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 
 			Ok(GenericMaterial {
 				#[cfg(feature = "bevy_pbr")]
-				handle: material.add_labeled_asset(load_context, "Material".to_string()).unwrap(),
+				handle: material.add_labeled_asset(load_context, "Material".to_string()),
 				properties: (self.settings.properties)(),
 			})
 		})
