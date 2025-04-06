@@ -32,12 +32,12 @@ fn setup(
 ) {
     commands.spawn((
         Mesh3d(asset_server.add(Cuboid::from_length(1.).into())),
-        GenericMaterial3d(asset_server.load("materials/example.material")),
+        GenericMaterial3d(asset_server.load("materials/example.toml")),
     ));
 }
 ```
 
-`assets/materials/example.material`
+`assets/materials/example.toml`
 ```toml
 # The type name of the material. Can either be the full path (e.g. bevy_pbr::pbr_material::StandardMaterial),
 # or, if only one registered material has the name, just the name itself.
