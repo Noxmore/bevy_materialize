@@ -180,6 +180,58 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 	}
 }
 
+#[derive(Debug, Clone)]
+pub struct ReflectGenericMaterialLoad {
+	pub load: fn(&mut GenericMaterialDeserializationProcessor, AssetPath<'static>) -> Box<dyn PartialReflect>,
+}
+
+pub trait ReflectGenericMaterialLoadAppExt {
+	/// Registers an asset to be able to be loaded within a [`GenericMaterial`].
+	///
+	/// Specifically, it allows loading of [`Handle<A>`] by simply providing a path relative to the material's directory.
+	fn register_generic_material_sub_asset<A: Asset>(&mut self) -> &mut Self;
+
+	/// Same as [`register_generic_material_sub_asset`](Self::register_generic_material_sub_asset), but passes image settings through.
+	/// This will cause an error if the asset loader doesn't use image settings.
+	fn register_generic_material_sub_asset_image_settings_passthrough<A: Asset>(&mut self) -> &mut Self;
+}
+impl ReflectGenericMaterialLoadAppExt for App {
+	// Lot of duplicated code here
+	#[track_caller]
+	fn register_generic_material_sub_asset<A: Asset>(&mut self) -> &mut Self {
+		let mut type_registry = self.main().world().resource::<AppTypeRegistry>().write();
+		let registration = match type_registry.get_mut(TypeId::of::<Handle<A>>()) {
+			Some(x) => x,
+			None => panic!("Asset handle not registered: {}", std::any::type_name::<A>()),
+		};
+
+		registration.insert(ReflectGenericMaterialLoad {
+			load: |processor, path| Box::new(processor.load::<A>(path)),
+		});
+
+		drop(type_registry);
+
+		self
+	}
+
+	#[track_caller]
+	fn register_generic_material_sub_asset_image_settings_passthrough<A: Asset>(&mut self) -> &mut Self {
+		let mut type_registry = self.main().world().resource::<AppTypeRegistry>().write();
+		let registration = match type_registry.get_mut(TypeId::of::<Handle<A>>()) {
+			Some(x) => x,
+			None => panic!("Asset handle not registered: {}", std::any::type_name::<A>()),
+		};
+
+		registration.insert(ReflectGenericMaterialLoad {
+			load: |processor, path| Box::new(processor.load_with_image_settings::<A>(path)),
+		});
+
+		drop(type_registry);
+
+		self
+	}
+}
+
 pub enum GenericMaterialDeserializationProcessor<'w, 'l> {
 	Loading {
 		#[cfg(feature = "bevy_image")]
@@ -199,7 +251,8 @@ impl GenericMaterialDeserializationProcessor<'_, '_> {
 		}
 	}
 
-	pub fn load<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
+	/// Same as [`load`](Self::load) but passes image load settings through.
+	pub fn load_with_image_settings<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
 		match self {
 			#[cfg(feature = "bevy_image")]
 			Self::Loading {
@@ -209,6 +262,13 @@ impl GenericMaterialDeserializationProcessor<'_, '_> {
 			#[cfg(not(feature = "bevy_image"))]
 			Self::Loading { load_context } => load_context.load(path),
 
+			Self::Loaded { asset_server, .. } => asset_server.load(path),
+		}
+	}
+
+	pub fn load<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
+		match self {
+			Self::Loading { load_context, .. } => load_context.load(path),
 			Self::Loaded { asset_server, .. } => asset_server.load(path),
 		}
 	}
@@ -224,20 +284,13 @@ impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_
 		if let Some(asset_path) = self.asset_path() {
 			// TODO good way to register loadable assets
 
-			if registration.type_id() == TypeId::of::<Handle<Image>>() {
+			if let Some(loader) = registration.data::<ReflectGenericMaterialLoad>() {
 				let path = String::deserialize(deserializer)?;
 
 				let parent_path = asset_path.parent().unwrap_or_default();
 				let path = parent_path.resolve(&path).map_err(serde::de::Error::custom)?;
-				let handle = self.load::<Image>(path);
-				return Ok(Ok(Box::new(handle)));
-			} else if registration.type_id() == TypeId::of::<Handle<GenericMaterial>>() {
-				let path = String::deserialize(deserializer)?;
 
-				let parent_path = asset_path.parent().unwrap_or_default();
-				let path = parent_path.resolve(&path).map_err(serde::de::Error::custom)?;
-				let handle = self.load::<GenericMaterial>(path);
-				return Ok(Ok(Box::new(handle)));
+				return Ok(Ok((loader.load)(self, path)));
 			}
 		}
 

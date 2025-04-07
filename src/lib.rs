@@ -27,8 +27,8 @@ use bevy::{
 	reflect::{serde::TypedReflectDeserializer, ApplyError, TypeRegistration, TypeRegistry},
 };
 use load::{
-	GenericMaterialDeserializationProcessor, GenericMaterialLoader, MaterialDeserializer, SimpleGenericMaterialLoader,
-	SimpleGenericMaterialLoaderSettings,
+	GenericMaterialDeserializationProcessor, GenericMaterialLoader, MaterialDeserializer, ReflectGenericMaterialLoadAppExt,
+	SimpleGenericMaterialLoader, SimpleGenericMaterialLoaderSettings,
 };
 use serde::{de::DeserializeSeed, Deserializer};
 use thiserror::Error;
@@ -69,6 +69,8 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 		#[rustfmt::skip]
 		app
 			.register_generic_material::<StandardMaterial>()
+			.register_generic_material_sub_asset_image_settings_passthrough::<Image>()
+			.register_generic_material_sub_asset_image_settings_passthrough::<GenericMaterial>()
 			.add_systems(PreUpdate, reload_generic_materials)
 			.add_systems(PostUpdate, (
 				insert_generic_materials,
