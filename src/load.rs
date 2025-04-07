@@ -1,4 +1,3 @@
-#[cfg(feature = "bevy_image")]
 use std::any::TypeId;
 use std::convert::Infallible;
 use std::str;

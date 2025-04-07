@@ -58,6 +58,7 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 			.insert_resource(shorthands.clone())
 			.register_type::<GenericMaterial3d>()
 			.init_asset::<GenericMaterial>()
+			.register_generic_material_sub_asset_image_settings_passthrough::<GenericMaterial>()
 			.register_asset_loader(GenericMaterialLoader {
 				type_registry,
 				shorthands,
@@ -65,12 +66,13 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 			})
 		;
 
+		#[cfg(feature = "bevy_image")]
+		app.register_generic_material_sub_asset_image_settings_passthrough::<Image>();
+
 		#[cfg(feature = "bevy_pbr")]
 		#[rustfmt::skip]
 		app
 			.register_generic_material::<StandardMaterial>()
-			.register_generic_material_sub_asset_image_settings_passthrough::<Image>()
-			.register_generic_material_sub_asset_image_settings_passthrough::<GenericMaterial>()
 			.add_systems(PreUpdate, reload_generic_materials)
 			.add_systems(PostUpdate, (
 				insert_generic_materials,
