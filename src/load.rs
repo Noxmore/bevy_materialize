@@ -1,6 +1,7 @@
 use std::any::TypeId;
 use std::convert::Infallible;
-use std::str;
+use std::ffi::OsStr;
+use std::{io, str};
 use std::sync::Arc;
 
 use ::serde;
@@ -31,6 +32,11 @@ pub trait MaterialDeserializer: Send + Sync + 'static {
 
 	/// Deserializes raw bytes into a value.
 	fn deserialize<T: DeserializeOwned>(&self, input: &[u8]) -> Result<T, Self::Error>;
+
+	/// Merges a value in-place, used for inheritance.
+	/// 
+	/// Implementors should recursively merge maps, and overwrite everything else.
+	fn merge_value(&self, value: &mut Self::Value, other: Self::Value);
 }
 
 #[cfg(feature = "toml")]
@@ -45,6 +51,18 @@ impl MaterialDeserializer for TomlMaterialDeserializer {
 	fn deserialize<T: DeserializeOwned>(&self, input: &[u8]) -> Result<T, Self::Error> {
 		let s = str::from_utf8(input).map_err(serde::de::Error::custom)?;
 		toml::from_str(s)
+	}
+
+	fn merge_value(&self, value: &mut Self::Value, other: Self::Value) {
+		match (value, other) {
+			(toml::Value::Table(value), toml::Value::Table(other)) => for (key, other_value) in other {
+				match value.get_mut(&key) {
+					Some(value) => self.merge_value(value, other_value),
+					None => { value.insert(key, other_value); },
+				}
+			},
+			(value, other) => *value = other,
+		}
 	}
 }
 
@@ -61,12 +79,40 @@ impl MaterialDeserializer for JsonMaterialDeserializer {
 		let s = str::from_utf8(input).map_err(serde::de::Error::custom)?;
 		serde_json::from_str(s)
 	}
+
+	fn merge_value(&self, value: &mut Self::Value, other: Self::Value) {
+		match (value, other) {
+			(serde_json::Value::Object(value), serde_json::Value::Object(other)) => for (key, other_value) in other {
+				match value.get_mut(&key) {
+					Some(value) => self.merge_value(value, other_value),
+					None => { value.insert(key, other_value); },
+				}
+			},
+			(value, other) => *value = other,
+		}
+	}
 }
 
 pub struct GenericMaterialLoader<D: MaterialDeserializer> {
 	pub type_registry: AppTypeRegistry,
 	pub shorthands: GenericMaterialShorthands,
+	pub default_inherits: Option<String>,
 	pub deserializer: Arc<D>,
+}
+impl<D: MaterialDeserializer> GenericMaterialLoader<D> {
+	/// Attempts to apply string replacements to a text-based material file. Currently these are hardcoded, but i'd prefer if eventually they won't be.
+	pub fn try_apply_replacements(&self, load_context: &LoadContext, bytes: Vec<u8>) -> Vec<u8> {
+		let mut s = match String::from_utf8(bytes) {
+			Ok(x) => x,
+			Err(err) => return err.into_bytes(),
+		};
+
+		if let Some(file_name) = load_context.path().with_extension("").file_name().and_then(OsStr::to_str) {
+			s = s.replace("${name}", file_name);
+		}
+
+		s.into_bytes()
+	}
 }
 impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 	type Asset = GenericMaterial;
@@ -88,6 +134,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 				#[cfg(feature = "bevy_pbr")]
 				#[serde(rename = "type")]
 				ty: Option<String>,
+				inherits: Option<String>,
 				#[cfg(feature = "bevy_pbr")]
 				material: Option<Value>,
 				properties: Option<HashMap<String, Value>>,
@@ -96,12 +143,92 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 			let mut input = Vec::new();
 			reader.read_to_end(&mut input).await?;
 
-			// let mut parsed: ParsedGenericMaterial<D::Value> = toml::from_str(&input_string).map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
+			input = self.try_apply_replacements(load_context, input);
+
 			let parsed: ParsedGenericMaterial<D::Value> = self
 				.deserializer
 				.deserialize(&input)
 				.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
 
+
+			async fn apply_inheritance<D: MaterialDeserializer>(
+				loader: &GenericMaterialLoader<D>,
+				load_context: &mut LoadContext<'_>,
+				sub_material: ParsedGenericMaterial<D::Value>,
+			) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialError> {
+				// We do a queue-based solution because async functions can't recurse
+
+				async fn read_path<D: MaterialDeserializer>(
+					loader: &GenericMaterialLoader<D>,
+					load_context: &mut LoadContext<'_>,
+					path: impl Into<AssetPath<'_>>,
+				) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialError> {
+					let bytes = load_context.read_asset_bytes(path).await.map_err(io::Error::other)?;
+					let bytes = loader.try_apply_replacements(load_context, bytes);
+
+					loader
+						.deserializer
+						.deserialize(&bytes)
+						.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))
+				}
+
+				let mut application_queue: Vec<ParsedGenericMaterial<D::Value>> = Vec::new();
+
+				// Build the queue
+				application_queue.push(sub_material);
+				
+				while let Some(inherits) = &application_queue.last().unwrap().inherits {
+					let parent_path = load_context.asset_path().parent().unwrap_or_default();
+					let path = parent_path.resolve(inherits).map_err(io::Error::other)?;
+
+					application_queue.push(read_path(loader, load_context, path).await
+						.map_err(|err| GenericMaterialError::InSuperMaterial(inherits.clone(), Box::new(err)))?);
+
+					// current_sub_material = application_queue.last().unwrap();
+				}
+
+				if let Some(inherits) = &loader.default_inherits {
+					application_queue.push(read_path(loader, load_context, inherits).await
+						.map_err(|err| GenericMaterialError::InSuperMaterial(inherits.clone(), Box::new(err)))?);
+				}
+
+				// Apply the queue
+
+				// We are guaranteed to have at least 1 element. This is the highest super-material.
+				let mut final_material = application_queue.pop().unwrap();
+				
+				// This goes through the queue from highest super-material to the one we started at, and merges them in that order.
+				while let Some(sub_material) = application_queue.pop() {
+					match (&mut final_material.properties, sub_material.properties) {
+						(Some(final_material_properties), Some(sub_properties)) => for (key, sub_value) in sub_properties {
+							match final_material_properties.get_mut(&key) {
+								Some(value) => loader.deserializer.merge_value(value, sub_value),
+								None => { final_material_properties.insert(key, sub_value); },
+							}
+						}
+						(None, Some(applicator_properties)) => final_material.properties = Some(applicator_properties),
+						_ => {}
+					}
+
+					if sub_material.ty.is_some() {
+						final_material.ty = sub_material.ty;
+						final_material.material = sub_material.material;
+					} else {
+						match (&mut final_material.material, sub_material.material) {
+							(Some(final_material_mat), Some(sub_material_mat)) => {
+								loader.deserializer.merge_value(final_material_mat, sub_material_mat);
+							}
+							(None, Some(sub_material_mat)) => final_material.material = Some(sub_material_mat),
+						_ => {}
+						}
+					}
+				}
+
+				Ok(final_material)
+			}
+
+			let parsed = apply_inheritance(self, load_context, parsed).await?;
+			
 			#[cfg(feature = "bevy_pbr")]
 			let mat = {
 				let type_name = parsed.ty.as_deref().unwrap_or(StandardMaterial::type_path());
@@ -252,6 +379,7 @@ impl GenericMaterialDeserializationProcessor<'_, '_> {
 
 	/// Same as [`load`](Self::load) but passes image load settings through.
 	pub fn load_with_image_settings<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
+		println!("load_with_image_settings {}", std::any::type_name::<A>());
 		match self {
 			#[cfg(feature = "bevy_image")]
 			Self::Loading {
@@ -266,6 +394,7 @@ impl GenericMaterialDeserializationProcessor<'_, '_> {
 	}
 
 	pub fn load<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
+		println!("load {}", std::any::type_name::<A>());
 		match self {
 			Self::Loading { load_context, .. } => load_context.load(path),
 			Self::Loaded { asset_server, .. } => asset_server.load(path),

@@ -1,0 +1,4 @@
+inherits = "super-material.toml"
+
+[material]
+# emissive = [1, 1, 1, 1]

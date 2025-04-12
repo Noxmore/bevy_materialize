@@ -41,6 +41,7 @@ pub struct MaterializePlugin<D: MaterialDeserializer> {
 	pub deserializer: Arc<D>,
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
 	pub simple_loader_settings: Option<SimpleGenericMaterialLoaderSettings>,
+	pub default_inherits: Option<String>,
 }
 impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 	fn build(&self, app: &mut App) {
@@ -62,6 +63,7 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 			.register_asset_loader(GenericMaterialLoader {
 				type_registry,
 				shorthands,
+				default_inherits: self.default_inherits.clone(),
 				deserializer: self.deserializer.clone(),
 			})
 		;
@@ -86,6 +88,7 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
 		Self {
 			deserializer: Arc::new(deserializer),
 			simple_loader_settings: Some(default()),
+			default_inherits: None,
 		}
 	}
 
@@ -94,12 +97,21 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
 		self.simple_loader_settings = settings;
 		self
 	}
+
+	/// If set, materials loaded from material files will inherit the material at this path by default.
+	/// 
+	/// Currently must be the same format that the deserializer supports.
+	pub fn with_default_inheritance(mut self, path: String) -> Self {
+		self.default_inherits = Some(path);
+		self
+	}
 }
 impl<D: MaterialDeserializer + Default> Default for MaterializePlugin<D> {
 	fn default() -> Self {
 		Self {
 			deserializer: Arc::new(D::default()),
 			simple_loader_settings: Some(default()),
+			default_inherits: None,
 		}
 	}
 }
@@ -458,6 +470,9 @@ pub enum GenericMaterialError {
 
 	#[error("in field {0} - {1}")]
 	InField(String, Box<Self>),
+
+	#[error("in super-material {0} - {1}")]
+	InSuperMaterial(String, Box<Self>),
 }
 
 /// Version of [`ReflectDefault`] that returns `Box<dyn ErasedMaterial>` instead of Box<dyn Reflect>.

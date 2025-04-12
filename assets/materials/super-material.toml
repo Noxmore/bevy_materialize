@@ -1,0 +1,5 @@
+type = "StandardMaterial"
+
+[material]
+base_color_texture = "${name}.png"
+perceptual_roughness = 0
