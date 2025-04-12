@@ -77,6 +77,8 @@ MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(Som
 MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(None);
 ```
 
+NOTE: This image loader seems to take priority over Bevy's image loader when it doesn't know which asset you want, so if you're loading images as untyped assets you'll have to turn this off.
+
 ## File Extensions
 Currently, the supported file extensions are: (Replace `toml` with the file format you're using)
 - `toml`
