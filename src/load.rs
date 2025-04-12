@@ -379,7 +379,6 @@ impl GenericMaterialDeserializationProcessor<'_, '_> {
 
 	/// Same as [`load`](Self::load) but passes image load settings through.
 	pub fn load_with_image_settings<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
-		println!("load_with_image_settings {}", std::any::type_name::<A>());
 		match self {
 			#[cfg(feature = "bevy_image")]
 			Self::Loading {
@@ -394,7 +393,6 @@ impl GenericMaterialDeserializationProcessor<'_, '_> {
 	}
 
 	pub fn load<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
-		println!("load {}", std::any::type_name::<A>());
 		match self {
 			Self::Loading { load_context, .. } => load_context.load(path),
 			Self::Loaded { asset_server, .. } => asset_server.load(path),
