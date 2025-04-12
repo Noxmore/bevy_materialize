@@ -14,7 +14,7 @@ use std::{
 use bevy::{
 	asset::{LoadContext, UntypedAssetId},
 	ecs::{component::HookContext, world::DeferredWorld},
-	reflect::{FromType, GetTypeRegistration, ReflectMut, Typed},
+	reflect::{GetTypeRegistration, ReflectMut, Typed},
 };
 #[cfg(feature = "bevy_pbr")]
 use std::any::Any;
@@ -174,9 +174,11 @@ pub trait MaterializeAppExt {
 	///
 	/// This also registers the type if it isn't already registered.
 	///
+	/// It's also worth noting that [`from_world`](FromWorld::from_world) is only called once when the material is registered, then that value is cloned each time a new instance is required.
+	///
 	/// If you own the type, you can also use `#[reflect(GenericMaterial)]` to automatically register it when you use `App::register_type::<...>()`.
 	/// I personally recommend just using this function though - saves a line of code.
-	fn register_generic_material<M: Material + Reflect + Struct + Default + GetTypeRegistration>(&mut self) -> &mut Self;
+	fn register_generic_material<M: Material + Reflect + Struct + FromWorld + GetTypeRegistration>(&mut self) -> &mut Self;
 
 	/// If your material name is really long, you can use this to register a shorthand that can be used in place of it.
 	///
@@ -199,19 +201,26 @@ pub trait MaterializeAppExt {
 }
 #[cfg(feature = "bevy_pbr")]
 impl MaterializeAppExt for App {
-	fn register_generic_material<M: Material + Reflect + Struct + Default + GetTypeRegistration>(&mut self) -> &mut Self {
-		let mut type_registry = self.main().world().resource::<AppTypeRegistry>().write();
+	fn register_generic_material<M: Material + Reflect + Struct + FromWorld + GetTypeRegistration>(&mut self) -> &mut Self {
+		let default_value = Box::new(M::from_world(self.world_mut()));
+
+		let mut type_registry = self.world().resource::<AppTypeRegistry>().write();
 		if type_registry.get(TypeId::of::<M>()).is_none() {
 			type_registry.register::<M>();
 		}
+
+		type_registry
+			.get_mut(TypeId::of::<M>())
+			.unwrap()
+			.insert(ReflectGenericMaterial { default_value });
+
 		drop(type_registry);
 
-		self.register_type_data::<M, ReflectGenericMaterial>()
+		self
 	}
 
 	fn register_generic_material_shorthand<M: GetTypeRegistration>(&mut self, shorthand: impl Into<String>) -> &mut Self {
-		self.main()
-			.world()
+		self.world()
 			.resource::<GenericMaterialShorthands>()
 			.values
 			.write()
@@ -464,21 +473,12 @@ pub enum GenericMaterialError {
 #[cfg(feature = "bevy_pbr")]
 #[derive(Clone)]
 pub struct ReflectGenericMaterial {
-	default: fn() -> Box<dyn ErasedMaterial>,
+	default_value: Box<dyn ErasedMaterial>,
 }
 #[cfg(feature = "bevy_pbr")]
 impl ReflectGenericMaterial {
 	pub fn default(&self) -> Box<dyn ErasedMaterial> {
-		(self.default)()
-	}
-}
-
-#[cfg(feature = "bevy_pbr")]
-impl<T: ErasedMaterial + Default> FromType<T> for ReflectGenericMaterial {
-	fn from_type() -> Self {
-		Self {
-			default: || Box::<T>::default(),
-		}
+		self.default_value.clone_erased()
 	}
 }
 
@@ -487,6 +487,7 @@ pub trait ErasedMaterial: Send + Sync + Reflect + Struct {
 	// TODO Can't use just `self` because i can't move trait objects.
 	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Box<dyn ErasedMaterialHandle>;
 	fn add_asset(&self, asset_server: &AssetServer) -> Box<dyn ErasedMaterialHandle>;
+	fn clone_erased(&self) -> Box<dyn ErasedMaterial>;
 }
 #[cfg(feature = "bevy_pbr")]
 impl<M: Material + Reflect + Struct + Clone> ErasedMaterial for M {
@@ -497,11 +498,21 @@ impl<M: Material + Reflect + Struct + Clone> ErasedMaterial for M {
 	fn add_asset(&self, asset_server: &AssetServer) -> Box<dyn ErasedMaterialHandle> {
 		asset_server.add(self.clone()).into()
 	}
+
+	fn clone_erased(&self) -> Box<dyn ErasedMaterial> {
+		Box::new(self.clone())
+	}
 }
 #[cfg(feature = "bevy_pbr")]
 impl<M: Material + Reflect + Struct + Clone> From<M> for Box<dyn ErasedMaterial> {
 	fn from(value: M) -> Self {
 		Box::new(value)
+	}
+}
+#[cfg(feature = "bevy_pbr")]
+impl Clone for Box<dyn ErasedMaterial> {
+	fn clone(&self) -> Self {
+		self.clone_erased()
 	}
 }
 
