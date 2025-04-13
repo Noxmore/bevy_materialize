@@ -45,7 +45,8 @@ fn setup(
 type = "StandardMaterial"
 
 [material]
-# Asset paths are relative to the material's path.
+# Asset paths are relative to the material's path,
+# unless they start with a '/', then they will be relative to the assets folder.
 base_color_texture = "example.png"
 emissive = [0.1, 0.2, 0.5, 1.0]
 alpha_mode = { Mask = 0.5 }
@@ -173,13 +174,16 @@ metallic_roughness_texture = "${name}_mr.png"
 normal_map_texture = "${name}_normal.png"
 depth_map = "${name}_depth.png"
 ```
-`#{name}` is a special pattern that gets replaced to the name of the material loaded.
+`#{name}` is a special pattern that gets replaced to the name of the material loaded. (This functionality can be turned off from the plugin)
 
 Now you can rewrite your `example.toml` into
 ```toml
 inherits = "pbr.toml"
 ```
 This is much less boilerplate, and you can just copy and paste it without needing to manually rename everything.
+You can still override and add more fields to the sub-material, this just gives you a handy baseline.
+
+TIP: Like other assets, if you start the path with a '/', it is relative to the assets folder rather than the material's. This is useful for setups with a bunch of subfolders.
 
 
 # Supported Bevy Versions

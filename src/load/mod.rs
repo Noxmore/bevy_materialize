@@ -8,7 +8,8 @@ use std::str;
 use std::sync::Arc;
 
 use ::serde;
-use bevy::asset::{AssetLoader, AssetPath};
+use bevy::asset::io::AssetSourceId;
+use bevy::asset::{AssetLoader, AssetPath, ParseAssetPathError};
 #[cfg(feature = "bevy_image")]
 use bevy::image::ImageLoaderSettings;
 use bevy::platform_support::collections::HashMap;
@@ -272,8 +273,7 @@ impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_
 			if let Some(loader) = registration.data::<ReflectGenericMaterialLoad>() {
 				let path = String::deserialize(deserializer)?;
 
-				let parent_path = asset_path.parent().unwrap_or_default();
-				let path = parent_path.resolve(&path).map_err(serde::de::Error::custom)?;
+				let path = relative_asset_path(asset_path, &path).map_err(serde::de::Error::custom)?;
 
 				return Ok(Ok((loader.load)(self, path)));
 			}
@@ -287,6 +287,34 @@ impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_
 pub fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut ImageLoaderSettings) {
 	let settings = settings.clone();
 	move |s| *s = settings.clone()
+}
+
+/// Produces an asset path relative to another for use in generic material loading.
+///
+/// # Examples
+/// ```
+/// # use bevy_materialize::load::relative_asset_path;
+/// assert_eq!(relative_asset_path(&"materials/foo.toml".into(), "foo.png").unwrap(), "materials/foo.png".into());
+/// assert_eq!(relative_asset_path(&"materials/foo.toml".into(), "textures/foo.png").unwrap(), "materials/textures/foo.png".into());
+/// assert_eq!(relative_asset_path(&"materials/foo.toml".into(), "/textures/foo.png").unwrap(), "textures/foo.png".into());
+/// assert_eq!(relative_asset_path(&"materials/foo.toml".into(), "\\textures\\foo.png").unwrap(), "textures\\foo.png".into());
+/// ```
+pub fn relative_asset_path(relative_to: &AssetPath<'static>, path: &str) -> Result<AssetPath<'static>, ParseAssetPathError> {
+	let parent = relative_to.parent().unwrap_or_default();
+
+	// Handle root
+	let root_pattern = ['/', '\\'];
+
+	if path.starts_with(root_pattern) {
+		let mut asset_path = AssetPath::from(path.trim_start_matches(root_pattern)).into_owned();
+		if let AssetSourceId::Default = asset_path.source() {
+			asset_path = asset_path.with_source(relative_to.source().clone_owned());
+		}
+
+		Ok(asset_path)
+	} else {
+		parent.resolve(path)
+	}
 }
 
 #[cfg(test)]

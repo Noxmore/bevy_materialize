@@ -8,37 +8,35 @@ use crate::load::ParsedGenericMaterial;
 use super::deserializer::MaterialDeserializer;
 use super::*;
 
+async fn read_path<D: MaterialDeserializer>(
+	loader: &GenericMaterialLoader<D>,
+	load_context: &mut LoadContext<'_>,
+	path: impl Into<AssetPath<'_>>,
+) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialError> {
+	let mut bytes = load_context.read_asset_bytes(path).await.map_err(io::Error::other)?;
+	if loader.do_text_replacements {
+		bytes = loader.try_apply_replacements(load_context, bytes);
+	}
+
+	loader
+		.deserializer
+		.deserialize(&bytes)
+		.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))
+}
+
 pub(super) async fn apply_inheritance<D: MaterialDeserializer>(
 	loader: &GenericMaterialLoader<D>,
 	load_context: &mut LoadContext<'_>,
 	sub_material: ParsedGenericMaterial<D::Value>,
 ) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialError> {
 	// We do a queue-based solution because async functions can't recurse
-
-	async fn read_path<D: MaterialDeserializer>(
-		loader: &GenericMaterialLoader<D>,
-		load_context: &mut LoadContext<'_>,
-		path: impl Into<AssetPath<'_>>,
-	) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialError> {
-		let mut bytes = load_context.read_asset_bytes(path).await.map_err(io::Error::other)?;
-		if loader.do_text_replacements {
-			bytes = loader.try_apply_replacements(load_context, bytes);
-		}
-
-		loader
-			.deserializer
-			.deserialize(&bytes)
-			.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))
-	}
-
 	let mut application_queue: Vec<ParsedGenericMaterial<D::Value>> = Vec::new();
 
 	// Build the queue
 	application_queue.push(sub_material);
 
 	while let Some(inherits) = &application_queue.last().unwrap().inherits {
-		let parent_path = load_context.asset_path().parent().unwrap_or_default();
-		let path = parent_path.resolve(inherits).map_err(io::Error::other)?;
+		let path = relative_asset_path(load_context.asset_path(), inherits).map_err(io::Error::other)?;
 
 		application_queue.push(
 			read_path(loader, load_context, path)
