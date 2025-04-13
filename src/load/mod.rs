@@ -317,8 +317,10 @@ pub fn relative_asset_path(relative_to: &AssetPath<'static>, path: &str) -> Resu
 	}
 }
 
-#[cfg(test)]
-fn create_loading_test_app(deserializer: impl MaterialDeserializer) -> App {
+/// For unit tests.
+#[doc(hidden)]
+#[cfg(feature = "bevy_pbr")]
+pub fn create_loading_test_app(deserializer: impl MaterialDeserializer) -> App {
 	let mut app = App::new();
 
 	app.add_plugins((
@@ -339,9 +341,7 @@ fn load_toml() {
 
 	smol::block_on(async {
 		asset_server.load_untyped_async("materials/animated.toml").await.unwrap();
-		// These require special scaffolding in the associated example.
-		// asset_server.load_untyped_async("materials/custom_material.toml").await.unwrap();
-		// asset_server.load_untyped_async("materials/extended_material.toml").await.unwrap();
+		// Custom materials require special scaffolding in the associated example, and so the test is there.
 		asset_server.load_untyped_async("materials/example.material.toml").await.unwrap();
 		asset_server.load_untyped_async("materials/sub-material.toml").await.unwrap();
 	});

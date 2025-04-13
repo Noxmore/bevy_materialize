@@ -121,3 +121,24 @@ impl Material for QuakeSkyMaterial {
 		AlphaMode::Opaque
 	}
 }
+
+#[test]
+fn load_custom_materials() {
+	let mut app = bevy_materialize::load::create_loading_test_app(TomlMaterialDeserializer);
+
+	#[rustfmt::skip]
+	app
+		.init_asset::<QuakeSkyMaterial>()
+		.init_asset::<QuakeLiquidMaterial>()
+		.register_generic_material::<QuakeLiquidMaterial>()
+		.register_generic_material_shorthand::<QuakeLiquidMaterial>("QuakeLiquidMaterial")
+		.register_generic_material::<QuakeSkyMaterial>()
+	;
+
+	let asset_server = app.world().resource::<AssetServer>();
+
+	smol::block_on(async {
+		asset_server.load_untyped_async("materials/custom_material.toml").await.unwrap();
+		asset_server.load_untyped_async("materials/extended_material.toml").await.unwrap();
+	});
+}

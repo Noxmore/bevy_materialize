@@ -13,5 +13,5 @@ cargo clippy --no-default-features
 echo cargo clippy --all-features --all-targets
 cargo clippy --all-features --all-targets
 
-echo cargo test --all-features
-cargo test --all-features
+echo cargo test --all-features --all-targets
+cargo test --all-features --all-targets
