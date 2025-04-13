@@ -28,7 +28,6 @@ use serde::de::DeserializeSeed;
 pub struct GenericMaterialLoader<D: MaterialDeserializer> {
 	pub type_registry: AppTypeRegistry,
 	pub shorthands: GenericMaterialShorthands,
-	pub default_inherits: Option<String>,
 	pub deserializer: Arc<D>,
 }
 impl<D: MaterialDeserializer> GenericMaterialLoader<D> {

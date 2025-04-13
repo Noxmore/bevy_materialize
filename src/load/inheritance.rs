@@ -45,14 +45,6 @@ pub(super) async fn apply_inheritance<D: MaterialDeserializer>(
 		);
 	}
 
-	if let Some(inherits) = &loader.default_inherits {
-		application_queue.push(
-			read_path(loader, load_context, inherits)
-				.await
-				.map_err(|err| GenericMaterialError::InSuperMaterial(inherits.clone(), Box::new(err)))?,
-		);
-	}
-
 	// Apply the queue
 
 	// We are guaranteed to have at least 1 element. This is the highest super-material.
