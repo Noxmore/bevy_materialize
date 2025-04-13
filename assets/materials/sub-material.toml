@@ -1,0 +1,11 @@
+inherits = "super-material.toml"
+# If this is uncommented, overriding the type, `material` will fully override that of super-material, rather than merging with it.
+# type = "StandardMaterial"
+
+[material]
+metallic = 0.2 # This adds the metallic field
+perceptual_roughness = 1 # This overrides super-material's perceptual_roughness, if not overwritten it will use super-material's.
+
+# Properties merge
+[properties]
+visibility = "Visible" # This overrides super-material's visibility

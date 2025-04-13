@@ -1,0 +1,10 @@
+type = "StandardMaterial"
+
+[material]
+# Special patterns will get replaced with values. For example, any instances of `${name}` in materials will get replaced with the material's name.
+# Note that if a material that inherits this gets loaded it will use its name instead. So if sub-material gets loaded, this will be changed into "sub-material.png".
+base_color_texture = "${name}.png"
+perceptual_roughness = 0
+
+[properties]
+visibility = "Hidden"
