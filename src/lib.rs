@@ -84,10 +84,7 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
 }
 impl<D: MaterialDeserializer + Default> Default for MaterializePlugin<D> {
 	fn default() -> Self {
-		Self {
-			deserializer: Arc::new(D::default()),
-			simple_loader_settings: Some(default()),
-		}
+		Self::new(default())
 	}
 }
 
