@@ -545,8 +545,9 @@ fn load_materials() {
 		// asset_server.load_untyped_async("materials/custom_material.toml").await.unwrap();
 		// asset_server.load_untyped_async("materials/extended_material.toml").await.unwrap();
 		asset_server.load_untyped_async("materials/example.material.toml").await.unwrap();
-		#[cfg(feature = "json")]
-		asset_server.load_untyped_async("materials/example.material.json").await.unwrap();
+		// TODO: Multiple formats at once
+		// #[cfg(feature = "json")]
+		// asset_server.load_untyped_async("materials/example.material.json").await.unwrap();
 		asset_server.load_untyped_async("materials/sub-material.toml").await.unwrap();
 	});
 }
