@@ -139,10 +139,10 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 		Box::pin(async {
 			#[derive(Deserialize)]
 			struct ParsedGenericMaterial<Value: GenericValue> {
+				inherits: Option<String>,
 				#[cfg(feature = "bevy_pbr")]
 				#[serde(rename = "type")]
 				ty: Option<String>,
-				inherits: Option<String>,
 				#[cfg(feature = "bevy_pbr")]
 				material: Option<Value>,
 				properties: Option<HashMap<String, Value>>,
@@ -225,6 +225,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 						_ => {}
 					}
 
+					#[cfg(feature = "bevy_pbr")]
 					if sub_material.ty.is_some() {
 						final_material.ty = sub_material.ty;
 						final_material.material = sub_material.material;
