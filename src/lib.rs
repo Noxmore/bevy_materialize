@@ -27,8 +27,9 @@ use bevy::{
 	reflect::{serde::TypedReflectDeserializer, ApplyError, TypeRegistration, TypeRegistry},
 };
 use load::{
-	GenericMaterialDeserializationProcessor, GenericMaterialLoader, MaterialDeserializer, ReflectGenericMaterialLoadAppExt,
-	SimpleGenericMaterialLoader, SimpleGenericMaterialLoaderSettings,
+	deserializer::MaterialDeserializer,
+	simple::{SimpleGenericMaterialLoader, SimpleGenericMaterialLoaderSettings},
+	GenericMaterialDeserializationProcessor, GenericMaterialLoader, ReflectGenericMaterialLoadAppExt,
 };
 use serde::{de::DeserializeSeed, Deserializer};
 use thiserror::Error;
@@ -641,7 +642,7 @@ fn direct_values() {
 		.add_plugins((
 			AssetPlugin::default(),
 			bevy::time::TimePlugin,
-			MaterializePlugin::new(crate::load::TomlMaterialDeserializer),
+			MaterializePlugin::new(load::deserializer::TomlMaterialDeserializer),
 		))
 		.add_systems(Startup, setup)
 		.add_systems(PostStartup, test)

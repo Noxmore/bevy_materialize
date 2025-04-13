@@ -1,20 +1,22 @@
+pub mod deserializer;
+pub mod inheritance;
+pub mod simple;
+
 use std::any::TypeId;
-use std::convert::Infallible;
 use std::ffi::OsStr;
+use std::str;
 use std::sync::Arc;
-use std::{io, str};
 
 use ::serde;
 use bevy::asset::{AssetLoader, AssetPath};
 #[cfg(feature = "bevy_image")]
-use bevy::image::{ImageLoader, ImageLoaderSettings};
+use bevy::image::ImageLoaderSettings;
 use bevy::platform_support::collections::HashMap;
 use bevy::reflect::{serde::*, *};
 use bevy::tasks::ConditionalSendFuture;
 use bevy::{asset::LoadContext, prelude::*};
-use serde::de::DeserializeOwned;
+use inheritance::apply_inheritance;
 use serde::Deserialize;
-use serde::Deserializer;
 
 use crate::{prelude::*, GenericMaterialError, GenericMaterialShorthands, GenericValue};
 
@@ -22,84 +24,6 @@ use crate::{prelude::*, GenericMaterialError, GenericMaterialShorthands, Generic
 use crate::{ErasedMaterial, ReflectGenericMaterial};
 #[cfg(feature = "bevy_pbr")]
 use serde::de::DeserializeSeed;
-
-/// Main trait for file format implementation of generic materials. See [`TomlMaterialDeserializer`] and [`JsonMaterialDeserializer`] for built-in/example implementations.
-pub trait MaterialDeserializer: Send + Sync + 'static {
-	type Value: GenericValue + DeserializeOwned + Deserializer<'static, Error: Send + Sync>;
-	type Error: serde::de::Error + Send + Sync;
-	/// The asset loader's file extensions.
-	const EXTENSIONS: &[&str];
-
-	/// Deserializes raw bytes into a value.
-	fn deserialize<T: DeserializeOwned>(&self, input: &[u8]) -> Result<T, Self::Error>;
-
-	/// Merges a value in-place, used for inheritance.
-	///
-	/// Implementors should recursively merge maps, and overwrite everything else.
-	fn merge_value(&self, value: &mut Self::Value, other: Self::Value);
-}
-
-#[cfg(feature = "toml")]
-#[derive(Debug, Clone, Default)]
-pub struct TomlMaterialDeserializer;
-#[cfg(feature = "toml")]
-impl MaterialDeserializer for TomlMaterialDeserializer {
-	type Value = toml::Value;
-	type Error = toml::de::Error;
-	const EXTENSIONS: &[&str] = &["toml", "mat", "mat.toml", "material", "material.toml"];
-
-	fn deserialize<T: DeserializeOwned>(&self, input: &[u8]) -> Result<T, Self::Error> {
-		let s = str::from_utf8(input).map_err(serde::de::Error::custom)?;
-		toml::from_str(s)
-	}
-
-	fn merge_value(&self, value: &mut Self::Value, other: Self::Value) {
-		match (value, other) {
-			(toml::Value::Table(value), toml::Value::Table(other)) => {
-				for (key, other_value) in other {
-					match value.get_mut(&key) {
-						Some(value) => self.merge_value(value, other_value),
-						None => {
-							value.insert(key, other_value);
-						}
-					}
-				}
-			}
-			(value, other) => *value = other,
-		}
-	}
-}
-
-#[cfg(feature = "json")]
-#[derive(Debug, Clone, Default)]
-pub struct JsonMaterialDeserializer;
-#[cfg(feature = "json")]
-impl MaterialDeserializer for JsonMaterialDeserializer {
-	type Value = serde_json::Value;
-	type Error = serde_json::Error;
-	const EXTENSIONS: &[&str] = &["json", "mat", "mat.json", "material", "material.json"];
-
-	fn deserialize<T: DeserializeOwned>(&self, input: &[u8]) -> Result<T, Self::Error> {
-		let s = str::from_utf8(input).map_err(serde::de::Error::custom)?;
-		serde_json::from_str(s)
-	}
-
-	fn merge_value(&self, value: &mut Self::Value, other: Self::Value) {
-		match (value, other) {
-			(serde_json::Value::Object(value), serde_json::Value::Object(other)) => {
-				for (key, other_value) in other {
-					match value.get_mut(&key) {
-						Some(value) => self.merge_value(value, other_value),
-						None => {
-							value.insert(key, other_value);
-						}
-					}
-				}
-			}
-			(value, other) => *value = other,
-		}
-	}
-}
 
 pub struct GenericMaterialLoader<D: MaterialDeserializer> {
 	pub type_registry: AppTypeRegistry,
@@ -137,17 +61,6 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 		#[allow(unused)] load_context: &mut LoadContext,
 	) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
 		Box::pin(async {
-			#[derive(Deserialize)]
-			struct ParsedGenericMaterial<Value: GenericValue> {
-				inherits: Option<String>,
-				#[cfg(feature = "bevy_pbr")]
-				#[serde(rename = "type")]
-				ty: Option<String>,
-				#[cfg(feature = "bevy_pbr")]
-				material: Option<Value>,
-				properties: Option<HashMap<String, Value>>,
-			}
-
 			let mut input = Vec::new();
 			reader.read_to_end(&mut input).await?;
 
@@ -157,91 +70,6 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 				.deserializer
 				.deserialize(&input)
 				.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
-
-			async fn apply_inheritance<D: MaterialDeserializer>(
-				loader: &GenericMaterialLoader<D>,
-				load_context: &mut LoadContext<'_>,
-				sub_material: ParsedGenericMaterial<D::Value>,
-			) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialError> {
-				// We do a queue-based solution because async functions can't recurse
-
-				async fn read_path<D: MaterialDeserializer>(
-					loader: &GenericMaterialLoader<D>,
-					load_context: &mut LoadContext<'_>,
-					path: impl Into<AssetPath<'_>>,
-				) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialError> {
-					let bytes = load_context.read_asset_bytes(path).await.map_err(io::Error::other)?;
-					let bytes = loader.try_apply_replacements(load_context, bytes);
-
-					loader
-						.deserializer
-						.deserialize(&bytes)
-						.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))
-				}
-
-				let mut application_queue: Vec<ParsedGenericMaterial<D::Value>> = Vec::new();
-
-				// Build the queue
-				application_queue.push(sub_material);
-
-				while let Some(inherits) = &application_queue.last().unwrap().inherits {
-					let parent_path = load_context.asset_path().parent().unwrap_or_default();
-					let path = parent_path.resolve(inherits).map_err(io::Error::other)?;
-
-					application_queue.push(
-						read_path(loader, load_context, path)
-							.await
-							.map_err(|err| GenericMaterialError::InSuperMaterial(inherits.clone(), Box::new(err)))?,
-					);
-				}
-
-				if let Some(inherits) = &loader.default_inherits {
-					application_queue.push(
-						read_path(loader, load_context, inherits)
-							.await
-							.map_err(|err| GenericMaterialError::InSuperMaterial(inherits.clone(), Box::new(err)))?,
-					);
-				}
-
-				// Apply the queue
-
-				// We are guaranteed to have at least 1 element. This is the highest super-material.
-				let mut final_material = application_queue.pop().unwrap();
-
-				// This goes through the queue from highest super-material to the one we started at, and merges them in that order.
-				while let Some(sub_material) = application_queue.pop() {
-					match (&mut final_material.properties, sub_material.properties) {
-						(Some(final_material_properties), Some(sub_properties)) => {
-							for (key, sub_value) in sub_properties {
-								match final_material_properties.get_mut(&key) {
-									Some(value) => loader.deserializer.merge_value(value, sub_value),
-									None => {
-										final_material_properties.insert(key, sub_value);
-									}
-								}
-							}
-						}
-						(None, Some(applicator_properties)) => final_material.properties = Some(applicator_properties),
-						_ => {}
-					}
-
-					#[cfg(feature = "bevy_pbr")]
-					if sub_material.ty.is_some() {
-						final_material.ty = sub_material.ty;
-						final_material.material = sub_material.material;
-					} else {
-						match (&mut final_material.material, sub_material.material) {
-							(Some(final_material_mat), Some(sub_material_mat)) => {
-								loader.deserializer.merge_value(final_material_mat, sub_material_mat);
-							}
-							(None, Some(sub_material_mat)) => final_material.material = Some(sub_material_mat),
-							_ => {}
-						}
-					}
-				}
-
-				Ok(final_material)
-			}
 
 			let parsed = apply_inheritance(self, load_context, parsed).await?;
 
@@ -322,6 +150,17 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 	fn extensions(&self) -> &[&str] {
 		D::EXTENSIONS
 	}
+}
+
+#[derive(Deserialize)]
+struct ParsedGenericMaterial<Value: GenericValue> {
+	inherits: Option<String>,
+	#[cfg(feature = "bevy_pbr")]
+	#[serde(rename = "type")]
+	ty: Option<String>,
+	#[cfg(feature = "bevy_pbr")]
+	material: Option<Value>,
+	properties: Option<HashMap<String, Value>>,
 }
 
 #[derive(Debug, Clone)]
@@ -442,81 +281,10 @@ impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_
 	}
 }
 
-#[derive(Debug, Clone)]
-pub struct SimpleGenericMaterialLoaderSettings {
-	/// A function that provides the underlying material given the loaded image. Default is a [`StandardMaterial`] with `perceptual_roughness` set to 1.
-	#[cfg(feature = "bevy_pbr")]
-	pub material: fn(Handle<Image>) -> Box<dyn ErasedMaterial>,
-	pub properties: fn() -> HashMap<String, Box<dyn GenericValue>>,
-}
-impl Default for SimpleGenericMaterialLoaderSettings {
-	fn default() -> Self {
-		Self {
-			#[cfg(feature = "bevy_pbr")]
-			material: |image| {
-				StandardMaterial {
-					base_color_texture: Some(image),
-					perceptual_roughness: 1.,
-					..default()
-				}
-				.into()
-			},
-			properties: HashMap::default,
-		}
-	}
-}
-
 #[cfg(feature = "bevy_image")]
 pub fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut ImageLoaderSettings) {
 	let settings = settings.clone();
 	move |s| *s = settings.clone()
-}
-
-/// Loads a [`GenericMaterial`] directly from an image file. By default it loads a [`StandardMaterial`], putting the image into its `base_color_texture` field, and setting `perceptual_roughness` set to 1.
-pub struct SimpleGenericMaterialLoader {
-	pub settings: SimpleGenericMaterialLoaderSettings,
-}
-impl AssetLoader for SimpleGenericMaterialLoader {
-	type Asset = GenericMaterial;
-	#[cfg(feature = "bevy_image")]
-	type Settings = ImageLoaderSettings;
-	#[cfg(not(feature = "bevy_image"))]
-	type Settings = ();
-	type Error = Infallible;
-
-	fn load(
-		&self,
-		_reader: &mut dyn bevy::asset::io::Reader,
-		#[allow(unused)] settings: &Self::Settings,
-		#[allow(unused)] load_context: &mut LoadContext,
-	) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
-		Box::pin(async move {
-			#[cfg(feature = "bevy_pbr")]
-			let path = load_context.asset_path().clone();
-
-			#[cfg(feature = "bevy_pbr")]
-			let material = (self.settings.material)(load_context.loader().with_settings(set_image_loader_settings(settings)).load(path));
-
-			Ok(GenericMaterial {
-				#[cfg(feature = "bevy_pbr")]
-				handle: material.add_labeled_asset(load_context, "Material".to_string()),
-				properties: (self.settings.properties)(),
-			})
-		})
-	}
-
-	#[cfg(feature = "bevy_image")]
-	fn extensions(&self) -> &[&str] {
-		ImageLoader::SUPPORTED_FILE_EXTENSIONS
-	}
-	#[cfg(not(feature = "bevy_image"))]
-	fn extensions(&self) -> &[&str] {
-		// Since we aren't actually loading any images, let's just say we support them all.
-		&[
-			"basis", "bmp", "dds", "ff", "farbfeld", "gif", "exr", "hdr", "ico", "jpg", "jpeg", "ktx2", "pam", "pbm", "pgm", "ppm", "png", "qoi",
-			"tga", "tif", "tiff", "webp",
-		]
-	}
 }
 
 #[cfg(test)]
