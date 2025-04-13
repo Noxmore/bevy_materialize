@@ -99,7 +99,7 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
 	}
 
 	/// If set, materials loaded from material files will inherit the material at this path by default.
-	/// 
+	///
 	/// Currently must be the same format that the deserializer supports.
 	pub fn with_default_inheritance(mut self, path: String) -> Self {
 		self.default_inherits = Some(path);

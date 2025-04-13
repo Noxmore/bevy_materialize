@@ -1,8 +1,8 @@
 use std::any::TypeId;
 use std::convert::Infallible;
 use std::ffi::OsStr;
-use std::{io, str};
 use std::sync::Arc;
+use std::{io, str};
 
 use ::serde;
 use bevy::asset::{AssetLoader, AssetPath};
@@ -34,7 +34,7 @@ pub trait MaterialDeserializer: Send + Sync + 'static {
 	fn deserialize<T: DeserializeOwned>(&self, input: &[u8]) -> Result<T, Self::Error>;
 
 	/// Merges a value in-place, used for inheritance.
-	/// 
+	///
 	/// Implementors should recursively merge maps, and overwrite everything else.
 	fn merge_value(&self, value: &mut Self::Value, other: Self::Value);
 }
@@ -55,12 +55,16 @@ impl MaterialDeserializer for TomlMaterialDeserializer {
 
 	fn merge_value(&self, value: &mut Self::Value, other: Self::Value) {
 		match (value, other) {
-			(toml::Value::Table(value), toml::Value::Table(other)) => for (key, other_value) in other {
-				match value.get_mut(&key) {
-					Some(value) => self.merge_value(value, other_value),
-					None => { value.insert(key, other_value); },
+			(toml::Value::Table(value), toml::Value::Table(other)) => {
+				for (key, other_value) in other {
+					match value.get_mut(&key) {
+						Some(value) => self.merge_value(value, other_value),
+						None => {
+							value.insert(key, other_value);
+						}
+					}
 				}
-			},
+			}
 			(value, other) => *value = other,
 		}
 	}
@@ -82,12 +86,16 @@ impl MaterialDeserializer for JsonMaterialDeserializer {
 
 	fn merge_value(&self, value: &mut Self::Value, other: Self::Value) {
 		match (value, other) {
-			(serde_json::Value::Object(value), serde_json::Value::Object(other)) => for (key, other_value) in other {
-				match value.get_mut(&key) {
-					Some(value) => self.merge_value(value, other_value),
-					None => { value.insert(key, other_value); },
+			(serde_json::Value::Object(value), serde_json::Value::Object(other)) => {
+				for (key, other_value) in other {
+					match value.get_mut(&key) {
+						Some(value) => self.merge_value(value, other_value),
+						None => {
+							value.insert(key, other_value);
+						}
+					}
 				}
-			},
+			}
 			(value, other) => *value = other,
 		}
 	}
@@ -150,7 +158,6 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 				.deserialize(&input)
 				.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
 
-
 			async fn apply_inheritance<D: MaterialDeserializer>(
 				loader: &GenericMaterialLoader<D>,
 				load_context: &mut LoadContext<'_>,
@@ -176,34 +183,42 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 
 				// Build the queue
 				application_queue.push(sub_material);
-				
+
 				while let Some(inherits) = &application_queue.last().unwrap().inherits {
 					let parent_path = load_context.asset_path().parent().unwrap_or_default();
 					let path = parent_path.resolve(inherits).map_err(io::Error::other)?;
 
-					application_queue.push(read_path(loader, load_context, path).await
-						.map_err(|err| GenericMaterialError::InSuperMaterial(inherits.clone(), Box::new(err)))?);
-
-					// current_sub_material = application_queue.last().unwrap();
+					application_queue.push(
+						read_path(loader, load_context, path)
+							.await
+							.map_err(|err| GenericMaterialError::InSuperMaterial(inherits.clone(), Box::new(err)))?,
+					);
 				}
 
 				if let Some(inherits) = &loader.default_inherits {
-					application_queue.push(read_path(loader, load_context, inherits).await
-						.map_err(|err| GenericMaterialError::InSuperMaterial(inherits.clone(), Box::new(err)))?);
+					application_queue.push(
+						read_path(loader, load_context, inherits)
+							.await
+							.map_err(|err| GenericMaterialError::InSuperMaterial(inherits.clone(), Box::new(err)))?,
+					);
 				}
 
 				// Apply the queue
 
 				// We are guaranteed to have at least 1 element. This is the highest super-material.
 				let mut final_material = application_queue.pop().unwrap();
-				
+
 				// This goes through the queue from highest super-material to the one we started at, and merges them in that order.
 				while let Some(sub_material) = application_queue.pop() {
 					match (&mut final_material.properties, sub_material.properties) {
-						(Some(final_material_properties), Some(sub_properties)) => for (key, sub_value) in sub_properties {
-							match final_material_properties.get_mut(&key) {
-								Some(value) => loader.deserializer.merge_value(value, sub_value),
-								None => { final_material_properties.insert(key, sub_value); },
+						(Some(final_material_properties), Some(sub_properties)) => {
+							for (key, sub_value) in sub_properties {
+								match final_material_properties.get_mut(&key) {
+									Some(value) => loader.deserializer.merge_value(value, sub_value),
+									None => {
+										final_material_properties.insert(key, sub_value);
+									}
+								}
 							}
 						}
 						(None, Some(applicator_properties)) => final_material.properties = Some(applicator_properties),
@@ -219,7 +234,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 								loader.deserializer.merge_value(final_material_mat, sub_material_mat);
 							}
 							(None, Some(sub_material_mat)) => final_material.material = Some(sub_material_mat),
-						_ => {}
+							_ => {}
 						}
 					}
 				}
@@ -228,7 +243,9 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 			}
 
 			let parsed = apply_inheritance(self, load_context, parsed).await?;
-			
+
+			assert!(parsed.inherits.is_none());
+
 			#[cfg(feature = "bevy_pbr")]
 			let mat = {
 				let type_name = parsed.ty.as_deref().unwrap_or(StandardMaterial::type_path());
