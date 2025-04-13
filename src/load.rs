@@ -500,3 +500,35 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 		]
 	}
 }
+
+#[cfg(test)]
+fn create_loading_test_app() -> App {
+	let mut app = App::new();
+
+	app.add_plugins((
+		MinimalPlugins,
+		AssetPlugin::default(),
+		ImagePlugin::default(),
+		MaterializePlugin::new(TomlMaterialDeserializer),
+	))
+	.init_asset::<StandardMaterial>();
+
+	app
+}
+
+#[test]
+fn load_materials() {
+	let app = create_loading_test_app();
+	let asset_server = app.world().resource::<AssetServer>();
+
+	smol::block_on(async {
+		asset_server.load_untyped_async("materials/animated.toml").await.unwrap();
+		// These require special scaffolding in the associated example.
+		// asset_server.load_untyped_async("materials/custom_material.toml").await.unwrap();
+		// asset_server.load_untyped_async("materials/extended_material.toml").await.unwrap();
+		asset_server.load_untyped_async("materials/example.material.toml").await.unwrap();
+		#[cfg(feature = "json")]
+		asset_server.load_untyped_async("materials/example.material.json").await.unwrap();
+		asset_server.load_untyped_async("materials/sub-material.toml").await.unwrap();
+	});
+}
