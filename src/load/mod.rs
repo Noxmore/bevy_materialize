@@ -290,14 +290,14 @@ pub fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut
 }
 
 #[cfg(test)]
-fn create_loading_test_app() -> App {
+fn create_loading_test_app(deserializer: impl MaterialDeserializer) -> App {
 	let mut app = App::new();
 
 	app.add_plugins((
 		MinimalPlugins,
 		AssetPlugin::default(),
 		ImagePlugin::default(),
-		MaterializePlugin::new(TomlMaterialDeserializer),
+		MaterializePlugin::new(deserializer),
 	))
 	.init_asset::<StandardMaterial>();
 
@@ -305,8 +305,8 @@ fn create_loading_test_app() -> App {
 }
 
 #[test]
-fn load_materials() {
-	let app = create_loading_test_app();
+fn load_toml() {
+	let app = create_loading_test_app(TomlMaterialDeserializer);
 	let asset_server = app.world().resource::<AssetServer>();
 
 	smol::block_on(async {
@@ -315,9 +315,17 @@ fn load_materials() {
 		// asset_server.load_untyped_async("materials/custom_material.toml").await.unwrap();
 		// asset_server.load_untyped_async("materials/extended_material.toml").await.unwrap();
 		asset_server.load_untyped_async("materials/example.material.toml").await.unwrap();
-		// TODO: Multiple formats at once
-		// #[cfg(feature = "json")]
-		// asset_server.load_untyped_async("materials/example.material.json").await.unwrap();
 		asset_server.load_untyped_async("materials/sub-material.toml").await.unwrap();
+	});
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn load_json() {
+	let app = create_loading_test_app(JsonMaterialDeserializer);
+	let asset_server = app.world().resource::<AssetServer>();
+
+	smol::block_on(async {
+		asset_server.load_untyped_async("materials/example.material.json").await.unwrap();
 	});
 }
