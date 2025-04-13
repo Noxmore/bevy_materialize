@@ -28,7 +28,6 @@ pub struct MaterializePlugin<D: MaterialDeserializer> {
 	pub deserializer: Arc<D>,
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
 	pub simple_loader_settings: Option<SimpleGenericMaterialLoaderSettings>,
-	pub default_inherits: Option<String>,
 }
 impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 	fn build(&self, app: &mut App) {
@@ -74,7 +73,6 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
 		Self {
 			deserializer: Arc::new(deserializer),
 			simple_loader_settings: Some(default()),
-			default_inherits: None,
 		}
 	}
 
@@ -89,7 +87,6 @@ impl<D: MaterialDeserializer + Default> Default for MaterializePlugin<D> {
 		Self {
 			deserializer: Arc::new(D::default()),
 			simple_loader_settings: Some(default()),
-			default_inherits: None,
 		}
 	}
 }
