@@ -467,7 +467,7 @@ impl Default for SimpleGenericMaterialLoaderSettings {
 }
 
 #[cfg(feature = "bevy_image")]
-fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut ImageLoaderSettings) {
+pub fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut ImageLoaderSettings) {
 	let settings = settings.clone();
 	move |s| *s = settings.clone()
 }
