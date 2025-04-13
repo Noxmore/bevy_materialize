@@ -149,6 +149,39 @@ For headless contexts like dedicated servers where you only want properties, but
 bevy_materialize = { version = "...", default-features = false, features = ["toml"] }
 ```
 
+## Inheritance
+
+When creating a bunch of PBR materials, your files might look something like this
+```toml
+# example.toml
+[material]
+base_color_texture = "example.png"
+occlusion_texture = "example_ao.png"
+metallic_roughness_texture = "example_mr.png"
+normal_map_texture = "example_normal.png"
+depth_map = "example_depth.png"
+```
+
+This is a lot of boilerplate, especially considering you have to manually rename 5 instances of your material name for *every* material.
+
+This is where inheritance comes in, you can make a file like
+```toml
+# pbr.toml
+[material]
+base_color_texture = "${name}.png"
+occlusion_texture = "${name}_ao.png"
+metallic_roughness_texture = "${name}_mr.png"
+normal_map_texture = "${name}_normal.png"
+depth_map = "${name}_depth.png"
+```
+`#{name}` is a special pattern that gets replaced to the name of the material loaded.
+
+Now you can rewrite your `example.toml` into
+```toml
+inherits = "pbr.toml"
+```
+This is much less boilerplate, and you can just copy and paste it without needing to manually rename everything.
+
 
 # Supported Bevy Versions
 | Bevy | bevy_materialize |
