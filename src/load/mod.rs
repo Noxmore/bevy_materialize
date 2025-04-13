@@ -29,6 +29,7 @@ pub struct GenericMaterialLoader<D: MaterialDeserializer> {
 	pub type_registry: AppTypeRegistry,
 	pub shorthands: GenericMaterialShorthands,
 	pub deserializer: Arc<D>,
+	pub do_text_replacements: bool,
 }
 impl<D: MaterialDeserializer> GenericMaterialLoader<D> {
 	/// Attempts to apply string replacements to a text-based material file. Currently these are hardcoded, but i'd prefer if eventually they won't be.
@@ -63,7 +64,9 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 			let mut input = Vec::new();
 			reader.read_to_end(&mut input).await?;
 
-			input = self.try_apply_replacements(load_context, input);
+			if self.do_text_replacements {
+				input = self.try_apply_replacements(load_context, input);
+			}
 
 			let parsed: ParsedGenericMaterial<D::Value> = self
 				.deserializer

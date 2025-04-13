@@ -20,8 +20,10 @@ pub(super) async fn apply_inheritance<D: MaterialDeserializer>(
 		load_context: &mut LoadContext<'_>,
 		path: impl Into<AssetPath<'_>>,
 	) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialError> {
-		let bytes = load_context.read_asset_bytes(path).await.map_err(io::Error::other)?;
-		let bytes = loader.try_apply_replacements(load_context, bytes);
+		let mut bytes = load_context.read_asset_bytes(path).await.map_err(io::Error::other)?;
+		if loader.do_text_replacements {
+			bytes = loader.try_apply_replacements(load_context, bytes);
+		}
 
 		loader
 			.deserializer

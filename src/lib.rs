@@ -28,6 +28,7 @@ pub struct MaterializePlugin<D: MaterialDeserializer> {
 	pub deserializer: Arc<D>,
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
 	pub simple_loader_settings: Option<SimpleGenericMaterialLoaderSettings>,
+	pub do_text_replacements: bool,
 }
 impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 	fn build(&self, app: &mut App) {
@@ -50,6 +51,7 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 				type_registry,
 				shorthands,
 				deserializer: self.deserializer.clone(),
+				do_text_replacements: self.do_text_replacements,
 			})
 		;
 
@@ -73,12 +75,19 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
 		Self {
 			deserializer: Arc::new(deserializer),
 			simple_loader_settings: Some(default()),
+			do_text_replacements: true,
 		}
 	}
 
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
 	pub fn with_simple_loader_settings(mut self, settings: Option<SimpleGenericMaterialLoaderSettings>) -> Self {
 		self.simple_loader_settings = settings;
+		self
+	}
+
+	/// Whether to replace special patterns in text, such as replacing `${name}` with the name of the material loading. (Default: `true`)
+	pub fn with_text_replacements(mut self, value: bool) -> Self {
+		self.do_text_replacements = value;
 		self
 	}
 }
