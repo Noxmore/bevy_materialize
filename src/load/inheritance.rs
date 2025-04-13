@@ -3,7 +3,7 @@ use std::io;
 use bevy::asset::{AssetPath, LoadContext};
 use bevy::prelude::*;
 
-use crate::{load::ParsedGenericMaterial, GenericMaterialError};
+use crate::load::ParsedGenericMaterial;
 
 use super::deserializer::MaterialDeserializer;
 use super::*;

@@ -97,7 +97,6 @@ It's not as easy as getting it from the `GenericMaterial` because properties nee
 ```rust
 use bevy::prelude::*;
 use bevy_materialize::prelude::*;
-use bevy_materialize::GenericMaterialError;
 
 fn retrieve_properties_example(
     materials: GenericMaterials,

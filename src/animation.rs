@@ -5,7 +5,7 @@ use bevy::{
 	prelude::*,
 };
 
-use crate::{prelude::*, GenericMaterialError};
+use crate::prelude::*;
 
 pub struct AnimationPlugin;
 impl Plugin for AnimationPlugin {

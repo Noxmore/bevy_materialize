@@ -18,10 +18,10 @@ use bevy::{asset::LoadContext, prelude::*};
 use inheritance::apply_inheritance;
 use serde::Deserialize;
 
-use crate::{prelude::*, GenericMaterialError, GenericMaterialShorthands, GenericValue};
+use crate::{prelude::*, value::GenericValue, GenericMaterialShorthands};
 
 #[cfg(feature = "bevy_pbr")]
-use crate::{ErasedMaterial, ReflectGenericMaterial};
+use crate::{generic_material::ErasedMaterial, generic_material::ReflectGenericMaterial};
 #[cfg(feature = "bevy_pbr")]
 use serde::de::DeserializeSeed;
 
