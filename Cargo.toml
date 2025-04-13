@@ -17,9 +17,9 @@ serde_json = { version = "1", optional = true }
 thiserror = "2"
 toml = { version = "0.8", optional = true }
 
-[dev-dependencies.bevy]
-version = "0.16.0-rc.4"
-features = ["bevy_winit", "png"]
+[dev-dependencies]
+bevy = { version = "0.16.0-rc.4", features = ["bevy_winit", "png"] }
+smol = "2"
 
 [[example]]
 name = "example_json"
