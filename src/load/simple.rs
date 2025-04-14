@@ -8,8 +8,12 @@ use super::*;
 use crate::prelude::*;
 
 /// Loads a [`GenericMaterial`] directly from an image file. By default it loads a [`StandardMaterial`], putting the image into its `base_color_texture` field, and setting `perceptual_roughness` set to 1.
+#[derive(Debug, Clone)]
 pub struct SimpleGenericMaterialLoader {
-	pub settings: SimpleGenericMaterialLoaderSettings,
+	/// A function that provides the underlying material given the loaded image. Default is a [`StandardMaterial`] with `perceptual_roughness` set to 1.
+	#[cfg(feature = "bevy_pbr")]
+	pub material: fn(Handle<Image>) -> Box<dyn ErasedMaterial>,
+	pub properties: fn() -> HashMap<String, Box<dyn GenericValue>>,
 }
 impl AssetLoader for SimpleGenericMaterialLoader {
 	type Asset = GenericMaterial;
@@ -30,12 +34,12 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 			let path = load_context.asset_path().clone();
 
 			#[cfg(feature = "bevy_pbr")]
-			let material = (self.settings.material)(load_context.loader().with_settings(set_image_loader_settings(settings)).load(path));
+			let material = (self.material)(load_context.loader().with_settings(set_image_loader_settings(settings)).load(path));
 
 			Ok(GenericMaterial {
 				#[cfg(feature = "bevy_pbr")]
 				handle: material.add_labeled_asset(load_context, "Material".to_string()),
-				properties: (self.settings.properties)(),
+				properties: (self.properties)(),
 			})
 		})
 	}
@@ -54,14 +58,7 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 	}
 }
 
-#[derive(Debug, Clone)]
-pub struct SimpleGenericMaterialLoaderSettings {
-	/// A function that provides the underlying material given the loaded image. Default is a [`StandardMaterial`] with `perceptual_roughness` set to 1.
-	#[cfg(feature = "bevy_pbr")]
-	pub material: fn(Handle<Image>) -> Box<dyn ErasedMaterial>,
-	pub properties: fn() -> HashMap<String, Box<dyn GenericValue>>,
-}
-impl Default for SimpleGenericMaterialLoaderSettings {
+impl Default for SimpleGenericMaterialLoader {
 	fn default() -> Self {
 		Self {
 			#[cfg(feature = "bevy_pbr")]

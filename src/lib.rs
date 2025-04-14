@@ -17,25 +17,21 @@ use generic_material::GenericMaterialShorthands;
 use bevy::prelude::*;
 #[cfg(feature = "bevy_pbr")]
 use generic_material::GenericMaterialApplied;
-use load::{
-	deserializer::MaterialDeserializer,
-	simple::{SimpleGenericMaterialLoader, SimpleGenericMaterialLoaderSettings},
-	GenericMaterialLoader, ReflectGenericMaterialLoadAppExt,
-};
+use load::{deserializer::MaterialDeserializer, simple::SimpleGenericMaterialLoader, GenericMaterialLoader, ReflectGenericMaterialLoadAppExt};
 use prelude::*;
 
 pub struct MaterializePlugin<D: MaterialDeserializer> {
 	pub deserializer: Arc<D>,
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
-	pub simple_loader_settings: Option<SimpleGenericMaterialLoaderSettings>,
+	pub simple_loader: Option<SimpleGenericMaterialLoader>,
 	pub do_text_replacements: bool,
 }
 impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 	fn build(&self, app: &mut App) {
 		let type_registry = app.world().resource::<AppTypeRegistry>().clone();
 
-		if let Some(settings) = &self.simple_loader_settings {
-			app.register_asset_loader(SimpleGenericMaterialLoader { settings: settings.clone() });
+		if let Some(simple_loader) = self.simple_loader.clone() {
+			app.register_asset_loader(simple_loader);
 		}
 
 		let shorthands = GenericMaterialShorthands::default();
@@ -74,14 +70,14 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
 	pub fn new(deserializer: D) -> Self {
 		Self {
 			deserializer: Arc::new(deserializer),
-			simple_loader_settings: Some(default()),
+			simple_loader: Some(default()),
 			do_text_replacements: true,
 		}
 	}
 
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
-	pub fn with_simple_loader(mut self, settings: Option<SimpleGenericMaterialLoaderSettings>) -> Self {
-		self.simple_loader_settings = settings;
+	pub fn with_simple_loader(mut self, loader: Option<SimpleGenericMaterialLoader>) -> Self {
+		self.simple_loader = loader;
 		self
 	}
 
