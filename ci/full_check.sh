@@ -11,5 +11,6 @@ cargo clippy --no-default-features
 cargo clippy --all-features --all-targets
 
 cargo test --all-features --all-targets
+cargo test --all-features --doc
 
 cargo doc --no-deps --all-features
