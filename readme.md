@@ -62,9 +62,9 @@ sounds = "wood"
 For simplicity, you can also load a `GenericMaterial` directly from an image file, which by default puts a `StandardMaterial` internally. You can change the material that it uses via
 ```rust
 use bevy::prelude::*;
-use bevy_materialize::{prelude::*, load::simple::SimpleGenericMaterialLoaderSettings};
+use bevy_materialize::{prelude::*, load::simple::SimpleGenericMaterialLoader};
 
-MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(Some(SimpleGenericMaterialLoaderSettings {
+MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader(Some(SimpleGenericMaterialLoader {
     material: |image| StandardMaterial {
         base_color_texture: Some(image),
         // Now it's super shiny!
@@ -75,10 +75,10 @@ MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(Som
 }));
 
 // This would disable the image loading functionality entirely.
-MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader_settings(None);
+MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader(None);
 ```
 
-NOTE: This image loader seems to take priority over Bevy's image loader when it doesn't know which asset you want, so if you're loading images as untyped assets you'll have to turn this off.
+NOTE: This loader seems to take priority over Bevy's image loader when it doesn't know which asset you want, so if you're loading images as untyped assets you'll have to turn this off.
 
 ## File Extensions
 Currently, the supported file extensions are: (Replace `toml` with the file format you're using)
