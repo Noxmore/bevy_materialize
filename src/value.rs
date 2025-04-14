@@ -11,11 +11,11 @@ use bevy::{
 use serde::{de::DeserializeSeed, Deserializer};
 use std::error::Error;
 
-/// Trait meant for `Value` types of different serialization libraries. For example, for the [`toml`](::toml) crate, this is implemented for [`toml::Value`](::toml::Value).
+/// Trait meant for `Value` types of different serialization libraries. For example, for the [`toml`] crate, this is implemented for [`toml::Value`].
 ///
-/// This is for storing general non type specific data for deserializing on demand, such as in [`GenericMaterial`] properties.
+/// This is for storing general non type specific data for deserializing on demand, such as in [`GenericMaterial`](crate::GenericMaterial) properties.
 ///
-/// NOTE: Because of the limitation of not being able to implement foreign traits for foreign types, this is automatically implemented for applicable types implementing the [`Deserializer`](serde::de::Deserializer) trait.
+/// NOTE: Because of the limitation of not being able to implement foreign traits for foreign types, this is automatically implemented for applicable types implementing the [`Deserializer`] trait.
 pub trait GenericValue: fmt::Debug + Send + Sync {
 	fn generic_deserialize(
 		&self,
@@ -36,7 +36,7 @@ impl<T: Deserializer<'static, Error: Send + Sync> + fmt::Debug + Clone + Send + 
 }
 
 /// Thin wrapper type implementing [`GenericValue`]. Used for directly passing values to properties.
-/// Usually you should use [`GenericMaterial::set_property`], which uses this under the hood.
+/// Usually you should use [`GenericMaterial::set_property`](crate::GenericMaterial::set_property), which uses this under the hood.
 #[derive(Debug, Clone, Deref, DerefMut)]
 pub struct DirectGenericValue<T>(pub T);
 impl<T: PartialReflect + fmt::Debug + Clone + Send + Sync> GenericValue for DirectGenericValue<T> {

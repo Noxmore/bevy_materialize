@@ -192,7 +192,7 @@ impl<T: PartialReflect> MaterialProperty<T> {
 	}
 }
 
-/// Version of [`ReflectDefault`] that returns `Box<dyn ErasedMaterial>` instead of Box<dyn Reflect>.
+/// Version of [`ReflectDefault`] that returns `Box<dyn ErasedMaterial>` instead of `Box<dyn Reflect>`.
 #[cfg(feature = "bevy_pbr")]
 #[derive(Clone)]
 pub struct ReflectGenericMaterial {
