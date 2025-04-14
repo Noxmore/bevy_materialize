@@ -80,7 +80,7 @@ impl<D: MaterialDeserializer> MaterializePlugin<D> {
 	}
 
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
-	pub fn with_simple_loader_settings(mut self, settings: Option<SimpleGenericMaterialLoaderSettings>) -> Self {
+	pub fn with_simple_loader(mut self, settings: Option<SimpleGenericMaterialLoaderSettings>) -> Self {
 		self.simple_loader_settings = settings;
 		self
 	}
