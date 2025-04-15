@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use bevy::{
-	platform_support::collections::{HashMap, HashSet},
+	platform::collections::{HashMap, HashSet},
 	prelude::*,
 };
 

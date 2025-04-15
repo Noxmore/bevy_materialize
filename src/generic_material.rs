@@ -10,7 +10,7 @@ use crate::{load::GenericMaterialDeserializationProcessor, value::DirectGenericV
 use bevy::{
 	asset::AssetPath,
 	ecs::system::SystemParam,
-	platform_support::collections::HashMap,
+	platform::collections::HashMap,
 	prelude::*,
 	reflect::{ApplyError, TypeRegistration},
 };

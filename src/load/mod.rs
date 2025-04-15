@@ -12,7 +12,7 @@ use bevy::asset::io::AssetSourceId;
 use bevy::asset::{AssetLoader, AssetPath, ParseAssetPathError};
 #[cfg(feature = "bevy_image")]
 use bevy::image::ImageLoaderSettings;
-use bevy::platform_support::collections::HashMap;
+use bevy::platform::collections::HashMap;
 use bevy::reflect::{serde::*, *};
 use bevy::tasks::ConditionalSendFuture;
 use bevy::{asset::LoadContext, prelude::*};
