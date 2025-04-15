@@ -268,8 +268,6 @@ impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_
 	) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error> {
 		#[cfg(feature = "bevy_image")]
 		if let Some(asset_path) = self.asset_path() {
-			// TODO good way to register loadable assets
-
 			if let Some(loader) = registration.data::<ReflectGenericMaterialLoad>() {
 				let path = String::deserialize(deserializer)?;
 
