@@ -262,7 +262,7 @@ impl GenericMaterialDeserializationProcessor<'_, '_> {
 impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_, '_> {
 	fn try_deserialize<'de, D: serde::Deserializer<'de>>(
 		&mut self,
-		#[allow(unused)] registration: &TypeRegistration,
+		registration: &TypeRegistration,
 		_registry: &TypeRegistry,
 		deserializer: D,
 	) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error> {
