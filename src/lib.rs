@@ -163,6 +163,11 @@ pub trait MaterializeAppExt {
 	/// I personally recommend just using this function though - saves a line of code.
 	fn register_generic_material<M: Material + Reflect + Struct + FromWorld + GetTypeRegistration>(&mut self) -> &mut Self;
 
+	/// Same as [`register_generic_material`](MaterializeAppExt::register_generic_material), but with a provided default value.
+	///
+	/// This main use of this is for extended materials, allowing you to specify defaults for the base material that you wouldn't be able to otherwise.
+	fn register_generic_material_with_default<M: Material + Reflect + Struct + GetTypeRegistration>(&mut self, default_value: M) -> &mut Self;
+
 	/// If your material name is really long, you can use this to register a shorthand that can be used in place of it.
 	///
 	/// This is namely useful for extended materials, as those type names tend to have a lot of boilerplate.
@@ -185,17 +190,19 @@ pub trait MaterializeAppExt {
 #[cfg(feature = "bevy_pbr")]
 impl MaterializeAppExt for App {
 	fn register_generic_material<M: Material + Reflect + Struct + FromWorld + GetTypeRegistration>(&mut self) -> &mut Self {
-		let default_value = Box::new(M::from_world(self.world_mut()));
+		let default_value = M::from_world(self.world_mut());
+		self.register_generic_material_with_default(default_value)
+	}
 
+	fn register_generic_material_with_default<M: Material + Reflect + Struct + GetTypeRegistration>(&mut self, default_value: M) -> &mut Self {
 		let mut type_registry = self.world().resource::<AppTypeRegistry>().write();
 		if type_registry.get(TypeId::of::<M>()).is_none() {
 			type_registry.register::<M>();
 		}
 
-		type_registry
-			.get_mut(TypeId::of::<M>())
-			.unwrap()
-			.insert(ReflectGenericMaterial { default_value });
+		type_registry.get_mut(TypeId::of::<M>()).unwrap().insert(ReflectGenericMaterial {
+			default_value: Box::new(default_value),
+		});
 
 		drop(type_registry);
 
