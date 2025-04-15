@@ -6,7 +6,7 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-use crate::{load::GenericMaterialDeserializationProcessor, value::DirectGenericValue, value::GenericValue};
+use crate::{load::MaterialDeserializationProcessor, value::DirectGenericValue, value::GenericValue};
 use bevy::{
 	asset::AssetPath,
 	ecs::system::SystemParam,
@@ -104,7 +104,7 @@ impl GenericMaterialView<'_> {
 			.get(TypeId::of::<T>())
 			.ok_or(GenericMaterialError::TypeNotRegistered(type_name::<T>()))?;
 
-		let mut processor = GenericMaterialDeserializationProcessor::Loaded {
+		let mut processor = MaterialDeserializationProcessor::Loaded {
 			asset_server: self.asset_server,
 			path: self.path.as_ref().map(Cow::as_ref),
 		};

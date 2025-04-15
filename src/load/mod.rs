@@ -120,7 +120,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 				};
 
 				if let Some(material) = parsed.material {
-					let mut processor = GenericMaterialDeserializationProcessor::Loading {
+					let mut processor = MaterialDeserializationProcessor::Loading {
 						load_context,
 						image_settings: settings.clone(),
 					};
@@ -168,7 +168,7 @@ struct ParsedGenericMaterial<Value: GenericValue> {
 
 #[derive(Debug, Clone)]
 pub struct ReflectGenericMaterialLoad {
-	pub load: fn(&mut GenericMaterialDeserializationProcessor, AssetPath<'static>) -> Box<dyn PartialReflect>,
+	pub load: fn(&mut MaterialDeserializationProcessor, AssetPath<'static>) -> Box<dyn PartialReflect>,
 }
 
 pub trait ReflectGenericMaterialLoadAppExt {
@@ -218,7 +218,7 @@ impl ReflectGenericMaterialLoadAppExt for App {
 	}
 }
 
-pub enum GenericMaterialDeserializationProcessor<'w, 'l> {
+pub enum MaterialDeserializationProcessor<'w, 'l> {
 	Loading {
 		#[cfg(feature = "bevy_image")]
 		image_settings: ImageLoaderSettings,
@@ -229,7 +229,7 @@ pub enum GenericMaterialDeserializationProcessor<'w, 'l> {
 		path: Option<&'l AssetPath<'static>>,
 	},
 }
-impl GenericMaterialDeserializationProcessor<'_, '_> {
+impl MaterialDeserializationProcessor<'_, '_> {
 	pub fn asset_path(&self) -> Option<&AssetPath<'static>> {
 		match self {
 			Self::Loading { load_context, .. } => Some(load_context.asset_path()),
@@ -259,7 +259,7 @@ impl GenericMaterialDeserializationProcessor<'_, '_> {
 		}
 	}
 }
-impl ReflectDeserializerProcessor for GenericMaterialDeserializationProcessor<'_, '_> {
+impl ReflectDeserializerProcessor for MaterialDeserializationProcessor<'_, '_> {
 	fn try_deserialize<'de, D: serde::Deserializer<'de>>(
 		&mut self,
 		registration: &TypeRegistration,

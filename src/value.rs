@@ -3,7 +3,7 @@ use std::{
 	fmt, io,
 };
 
-use crate::load::GenericMaterialDeserializationProcessor;
+use crate::load::MaterialDeserializationProcessor;
 use bevy::{
 	prelude::*,
 	reflect::{serde::TypedReflectDeserializer, TypeRegistration, TypeRegistry},
@@ -21,7 +21,7 @@ pub trait GenericValue: fmt::Debug + Send + Sync {
 		&self,
 		registration: &TypeRegistration,
 		registry: &TypeRegistry,
-		processor: &mut GenericMaterialDeserializationProcessor,
+		processor: &mut MaterialDeserializationProcessor,
 	) -> Result<Box<dyn PartialReflect>, Box<dyn Error + Send + Sync>>;
 }
 impl<T: Deserializer<'static, Error: Send + Sync> + fmt::Debug + Clone + Send + Sync + 'static> GenericValue for T {
@@ -29,7 +29,7 @@ impl<T: Deserializer<'static, Error: Send + Sync> + fmt::Debug + Clone + Send + 
 		&self,
 		registration: &TypeRegistration,
 		registry: &TypeRegistry,
-		processor: &mut GenericMaterialDeserializationProcessor,
+		processor: &mut MaterialDeserializationProcessor,
 	) -> Result<Box<dyn PartialReflect>, Box<dyn Error + Send + Sync>> {
 		Ok(TypedReflectDeserializer::with_processor(registration, registry, processor).deserialize(self.clone())?)
 	}
@@ -44,7 +44,7 @@ impl<T: PartialReflect + fmt::Debug + Clone + Send + Sync> GenericValue for Dire
 		&self,
 		registration: &TypeRegistration,
 		_registry: &TypeRegistry,
-		_processor: &mut GenericMaterialDeserializationProcessor,
+		_processor: &mut MaterialDeserializationProcessor,
 	) -> Result<Box<dyn PartialReflect>, Box<dyn Error + Send + Sync>> {
 		if registration.type_id() == TypeId::of::<T>() {
 			Ok(Box::new(self.0.clone()))
