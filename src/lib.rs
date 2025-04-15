@@ -158,9 +158,6 @@ pub trait MaterializeAppExt {
 	/// This also registers the type if it isn't already registered.
 	///
 	/// It's also worth noting that [`from_world`](FromWorld::from_world) is only called once when the material is registered, then that value is cloned each time a new instance is required.
-	///
-	/// If you own the type, you can also use `#[reflect(GenericMaterial)]` to automatically register it when you use `App::register_type::<...>()`.
-	/// I personally recommend just using this function though - saves a line of code.
 	fn register_generic_material<M: Material + Reflect + Struct + FromWorld + GetTypeRegistration>(&mut self) -> &mut Self;
 
 	/// Same as [`register_generic_material`](MaterializeAppExt::register_generic_material), but with a provided default value.
