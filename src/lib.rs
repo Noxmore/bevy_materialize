@@ -25,8 +25,6 @@ use load::{
 };
 use prelude::*;
 
-pub const VISIBILITY_PROPERTY_KEY: &str = "visibility";
-
 pub struct MaterializePlugin<D: MaterialDeserializer, P: MaterialSubProcessor> {
 	pub deserializer: Arc<D>,
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
@@ -74,7 +72,7 @@ impl<D: MaterialDeserializer, P: MaterialSubProcessor + Clone> Plugin for Materi
 		#[cfg(feature = "bevy_pbr")]
 		#[rustfmt::skip]
 		app
-			.register_material_property::<Visibility>(VISIBILITY_PROPERTY_KEY)
+			.register_material_property(GenericMaterial::VISIBILITY)
 			.register_generic_material::<StandardMaterial>()
 			.add_systems(PreUpdate, reload_generic_materials)
 			.add_systems(PostUpdate, (
@@ -190,6 +188,11 @@ pub fn reload_generic_materials(
 	}
 }
 
+impl GenericMaterial {
+	/// Material property that sets the visibility of the mesh it's applied to.
+	pub const VISIBILITY: MaterialProperty<Visibility> = MaterialProperty::new("visibility");
+}
+
 #[cfg(feature = "bevy_pbr")]
 pub fn visibility_material_property(
 	mut query: Query<(&GenericMaterial3d, &mut Visibility), Without<GenericMaterialApplied>>,
@@ -197,7 +200,7 @@ pub fn visibility_material_property(
 ) {
 	for (generic_material_holder, mut visibility) in &mut query {
 		let Some(generic_material) = generic_materials.get(&generic_material_holder.0) else { continue };
-		let Ok(new_visibility) = generic_material.get_property::<Visibility>(VISIBILITY_PROPERTY_KEY) else { continue };
+		let Ok(new_visibility) = generic_material.get_property(GenericMaterial::VISIBILITY) else { continue };
 
 		*visibility = *new_visibility;
 	}

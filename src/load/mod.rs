@@ -304,8 +304,8 @@ pub fn create_loading_test_app(deserializer: impl MaterialDeserializer) -> App {
 		ImagePlugin::default(),
 		MaterializePlugin::new(deserializer),
 	))
-	.register_material_property::<bool>("collision")
-	.register_material_property::<String>("sounds")
+	.register_material_property_manual::<bool>("collision")
+	.register_material_property_manual::<String>("sounds")
 	.init_asset::<StandardMaterial>();
 
 	app

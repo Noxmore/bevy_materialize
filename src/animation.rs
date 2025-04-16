@@ -10,14 +10,16 @@ use crate::{
 	prelude::*,
 };
 
-pub const ANIMATION_PROPERTY_KEY: &str = "animation";
+impl GenericMaterial {
+	pub const ANIMATION: MaterialProperty<MaterialAnimations> = MaterialProperty::new("animation");
+}
 
 pub struct AnimationPlugin;
 impl Plugin for AnimationPlugin {
 	fn build(&self, app: &mut App) {
 		#[rustfmt::skip]
 		app
-			.register_material_property::<MaterialAnimations>(ANIMATION_PROPERTY_KEY)
+			.register_material_property(GenericMaterial::ANIMATION)
 			.init_resource::<AnimatedGenericMaterials>()
 			.add_systems(Update, Self::animate_materials)
 		;
@@ -50,7 +52,7 @@ impl AnimationPlugin {
 				continue;
 			}
 
-			let mut animations = match generic_material.get_property::<MaterialAnimations>(ANIMATION_PROPERTY_KEY).cloned() {
+			let mut animations = match generic_material.get_property(GenericMaterial::ANIMATION).cloned() {
 				Ok(x) => x,
 				Err(GetPropertyError::NotFound) => continue,
 				Err(err) => {

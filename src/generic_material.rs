@@ -2,6 +2,7 @@ use std::{
 	any::TypeId,
 	error::Error,
 	fmt, io,
+	marker::PhantomData,
 	sync::{Arc, RwLock},
 };
 
@@ -71,16 +72,26 @@ impl GenericMaterial {
 	}
 
 	/// Sets a property to `value`.
-	pub fn set_property<T: Reflect + fmt::Debug + Send + Sync>(&mut self, key: impl Into<String>, value: T) {
+	pub fn set_property_manual<T: Reflect>(&mut self, key: impl Into<String>, value: T) {
 		self.properties.insert(key.into(), Box::new(value));
 	}
 
+	/// Sets a property to `value`.
+	pub fn set_property<T: Reflect>(&mut self, property: MaterialProperty<T>, value: T) {
+		self.set_property_manual(property.key, value);
+	}
+
 	/// Attempts to get the specified property as `T`.
-	pub fn get_property<T: Reflect>(&self, key: &str) -> Result<&T, GetPropertyError> {
+	pub fn get_property_manual<T: Reflect>(&self, key: &str) -> Result<&T, GetPropertyError> {
 		let value = self.properties.get(key).ok_or(GetPropertyError::NotFound)?;
 		value.downcast_ref().ok_or(GetPropertyError::WrongType {
 			found: value.get_represented_type_info(),
 		})
+	}
+
+	/// Attempts to get the specified property.
+	pub fn get_property<T: Reflect>(&self, property: MaterialProperty<T>) -> Result<&T, GetPropertyError> {
+		self.get_property_manual(property.key)
 	}
 }
 
@@ -98,14 +109,47 @@ pub struct MaterialPropertyRegistry {
 	pub inner: Arc<RwLock<HashMap<String, TypeId>>>,
 }
 
+/// Helper type containing both a type and key for material properties.
+/// 
+/// # Examples
+/// ```
+/// # use bevy::prelude::*;
+/// # use bevy_materialize::prelude::*;
+///
+/// pub trait MyMaterialProperties {
+///     pub const MY_PROPERTY: MaterialProperty<f32> = MaterialProperty::new("my_property");
+/// }
+/// impl MyMaterialProperties for GenericMaterial {}
+///
+/// App::new()
+///     .register_material_property(GenericMaterial::MY_PROPERTY)
+///     // ...
+/// # ;
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct MaterialProperty<T> {
+	pub key: &'static str,
+	_marker: PhantomData<T>,
+}
+impl<T> MaterialProperty<T> {
+	pub const fn new(key: &'static str) -> Self {
+		Self { key, _marker: PhantomData }
+	}
+}
+
 pub trait MaterialPropertyAppExt {
-	/// Registers material properties with the specified key to try to deserialize into `T`.
+	/// Registers material properties with the specified key to try to deserialize into `T`. Overwrites registration if one already exists for `key`.
 	///
 	/// Also registers the type if it hasn't been already.
-	fn register_material_property<T: Reflect + GetTypeRegistration>(&mut self, key: impl Into<String>) -> &mut Self;
+	fn register_material_property_manual<T: Reflect + GetTypeRegistration>(&mut self, key: impl Into<String>) -> &mut Self;
+
+	/// Uses the [`MaterialProperty`] helper type to register a material property. Overwrites registration if one already exists for `key`.
+	///
+	/// Also registers the type if it hasn't been already.
+	fn register_material_property<T: Reflect + GetTypeRegistration>(&mut self, property: MaterialProperty<T>) -> &mut Self;
 }
 impl MaterialPropertyAppExt for App {
-	fn register_material_property<T: Reflect + GetTypeRegistration>(&mut self, key: impl Into<String>) -> &mut Self {
+	fn register_material_property_manual<T: Reflect + GetTypeRegistration>(&mut self, key: impl Into<String>) -> &mut Self {
 		let mut type_registry = self.world().resource::<AppTypeRegistry>().write();
 		if type_registry.get(TypeId::of::<T>()).is_none() {
 			type_registry.register::<T>();
@@ -117,6 +161,10 @@ impl MaterialPropertyAppExt for App {
 		drop(property_map);
 
 		self
+	}
+
+	fn register_material_property<T: Reflect + GetTypeRegistration>(&mut self, property: MaterialProperty<T>) -> &mut Self {
+		self.register_material_property_manual::<T>(property.key)
 	}
 }
 
