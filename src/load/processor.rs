@@ -9,6 +9,10 @@ use bevy::reflect::{serde::*, *};
 use bevy::{asset::LoadContext, prelude::*};
 use serde::Deserialize;
 
+/// API wrapping Bevy's [`ReflectDeserializerProcessor`](https://docs.rs/bevy/latest/bevy/reflect/serde/trait.ReflectDeserializerProcessor.html).
+/// This allows you to modify data as it's being deserialized. For example, this system is used for loading assets, treating strings as paths.
+///
+/// It's used much like Rust's iterator API, each processor having a child processor that is stored via generic. If you want to make your own, check out [`AssetLoadingProcessor`] for a simple example of an implementation.
 pub trait MaterialSubProcessor: Clone + Send + Sync + 'static {
 	type Child: MaterialSubProcessor;
 
@@ -57,6 +61,7 @@ impl MaterialSubProcessor for () {
 	}
 }
 
+/// Material processor that loads assets from paths.
 #[derive(Clone)]
 pub struct AssetLoadingProcessor<P: MaterialSubProcessor>(pub P);
 impl<P: MaterialSubProcessor> MaterialSubProcessor for AssetLoadingProcessor<P> {
@@ -84,6 +89,7 @@ impl<P: MaterialSubProcessor> MaterialSubProcessor for AssetLoadingProcessor<P> 
 	}
 }
 
+/// Data used for [`MaterialSubProcessor`]
 pub struct MaterialProcessorContext<'w, 'l> {
 	#[cfg(feature = "bevy_image")]
 	pub image_settings: ImageLoaderSettings,
@@ -103,6 +109,7 @@ impl MaterialProcessorContext<'_, '_> {
 	}
 }
 
+/// Contains a [`MaterialSubProcessor`] and context, and kicks off the processing.
 pub struct MaterialDeserializerProcessor<'w, 'l, P: MaterialSubProcessor> {
 	pub ctx: MaterialProcessorContext<'w, 'l>,
 	pub sub_processor: &'l P,
