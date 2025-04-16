@@ -190,6 +190,7 @@ pub fn reload_generic_materials(
 
 impl GenericMaterial {
 	/// Material property that sets the visibility of the mesh it's applied to.
+	#[cfg(feature = "bevy_pbr")]
 	pub const VISIBILITY: MaterialProperty<Visibility> = MaterialProperty::new("visibility");
 }
 

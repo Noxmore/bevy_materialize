@@ -10,7 +10,7 @@ First, add the `MaterializePlugin` to your `App`.
 use bevy::prelude::*;
 use bevy_materialize::prelude::*;
 
-fn main_example() {
+fn example_main() {
     App::new()
         // ...
         .add_plugins(MaterializePlugin::new(TomlMaterialDeserializer))
@@ -92,36 +92,39 @@ Feel free to just use the one you like the most.
 
 ## Properties
 
-For retrieving properties from a material, the easiest way is with a `GenericMaterialView`, which you can get via the `GenericMaterials` system param.
+For retrieving custom properties from a material, the API is pretty simple.
 
-It's not as easy as getting it from the `GenericMaterial` because properties need additional references to parse, such as the asset server and type registry.
+```rust
+use bevy::prelude::*;
+use bevy_materialize::prelude::*;
+use bevy_materialize::generic_material::GetPropertyError;
+
+fn retrieve_properties_example(
+    material: GenericMaterial,
+) {
+    // The type returned is based on the generic of the property. For example, VISIBILITY is a MaterialProperty<Visibility>.
+    let _: Result<&Visibility, GetPropertyError> = material.get_property(GenericMaterial::VISIBILITY);
+}
+```
+
+For creating your own properties, you should make an extension trait for GenericMaterial, then register it with your app.
 ```rust
 use bevy::prelude::*;
 use bevy_materialize::prelude::*;
 
-fn retrieve_properties_example(
-    materials: GenericMaterials,
-) {
-    // You can also do materials.get(<asset id>) to get a view.
-    for view in materials.iter() {
-        // The type returned is based on the generic of the property. For example, VISIBILITY is a MaterialProperty<Visibility>.
-        let _: Result<Visibility, GenericMaterialError> = view.get_property(GenericMaterial::VISIBILITY);
+pub trait MyMaterialProperties {
+    const MY_PROPERTY: MaterialProperty<f32> = MaterialProperty::new("my_property");
+}
+impl MyMaterialProperties for GenericMaterial {}
 
-        // Like get_property(), but if anything goes wrong, returns the default value instead an error.
-        let _: Visibility = view.property(GenericMaterial::VISIBILITY);
-    }
+fn example_main() {
+    App::new()
+        .register_material_property(GenericMaterial::MY_PROPERTY)
+        // ...
+    ;
 }
 ```
-
-For creating your own properties, you should make an extension trait for GenericMaterial.
-```rust
-use bevy_materialize::prelude::*;
-
-pub trait MyMaterialPropertiesExt {
-    const MY_PROPERTY: MaterialProperty<f32> = MaterialProperty::new("my_property", || 5.);
-}
-impl MyMaterialPropertiesExt for GenericMaterial {}
-```
+`MaterialProperty` is just a helper struct that bundles the type and key together, and technically isn't necessary for any of this.
 
 ## Registering
 
@@ -185,9 +188,24 @@ You can still override and add more fields to the sub-material, this just gives 
 
 TIP: Like other assets, if you start the path with a '/', it is relative to the assets folder rather than the material's. This is useful for setups with a bunch of subfolders.
 
+## Processors
+
+`bevy_materialize` has a sub-processor API wrapping Bevy's [`ReflectDeserializerProcessor`](https://docs.rs/bevy/latest/bevy/reflect/serde/trait.ReflectDeserializerProcessor.html).
+This allows you to modify data as it's being deserialized. For example, this system is used for loading assets, treating strings as paths.
+
+It's used much like Rust's iterator API, each processor having a child processor that is stored via generic. If you want to make your own, check out `AssetLoadingProcessor` for a simple example of an implementation, then use it with your `MaterializePlugin`.
+```rust ignore
+pub struct MyProcessor<P: MaterialSubProcessor>(pub P);
+impl<P: MaterialSubProcessor> MaterialSubProcessor for MyProcessor<P> {
+	// ...
+}
+
+MaterializePlugin::new(TomlMaterialDeserializer) // type: MaterializePlugin<..., AssetLoadingProcessor<()>>
+    .with_processor(MyProcessor) // type: MaterializePlugin<..., MyProcessor<AssetLoadingProcessor<()>>>
+```
 
 # Supported Bevy Versions
 | Bevy | bevy_materialize |
 -|-
-| 0.16-rc.3 | master |
+| 0.16 | 0.5 |
 | 0.15 | 0.1-0.4 |

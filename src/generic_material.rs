@@ -1,7 +1,7 @@
 use std::{
 	any::TypeId,
 	error::Error,
-	fmt, io,
+	io,
 	marker::PhantomData,
 	sync::{Arc, RwLock},
 };
@@ -19,7 +19,7 @@ use bevy::{
 	reflect::{ReflectMut, Typed},
 };
 #[cfg(feature = "bevy_pbr")]
-use std::any::Any;
+use std::{any::Any, fmt};
 use thiserror::Error;
 
 /// Generic version of [`MeshMaterial3d`]. Stores a handle to a [`GenericMaterial`].
@@ -110,21 +110,23 @@ pub struct MaterialPropertyRegistry {
 }
 
 /// Helper type containing both a type and key for material properties.
-/// 
+///
 /// # Examples
 /// ```
 /// # use bevy::prelude::*;
 /// # use bevy_materialize::prelude::*;
 ///
 /// pub trait MyMaterialProperties {
-///     pub const MY_PROPERTY: MaterialProperty<f32> = MaterialProperty::new("my_property");
+///     const MY_PROPERTY: MaterialProperty<f32> = MaterialProperty::new("my_property");
 /// }
 /// impl MyMaterialProperties for GenericMaterial {}
 ///
-/// App::new()
-///     .register_material_property(GenericMaterial::MY_PROPERTY)
-///     // ...
+/// fn example_main() {
+///     App::new()
+///         .register_material_property(GenericMaterial::MY_PROPERTY)
+///         // ...
 /// # ;
+/// }
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct MaterialProperty<T> {
