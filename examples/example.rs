@@ -22,17 +22,19 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+	let cube = asset_server.add(Cuboid::from_length(1.).into());
+	
 	commands.spawn((
-		Mesh3d(asset_server.add(Cuboid::from_length(1.).into())),
+		Mesh3d(cube.clone()),
 		GenericMaterial3d(asset_server.load("materials/example.material.toml")),
 	));
 	commands.spawn((
-		Mesh3d(asset_server.add(Cuboid::from_length(1.).into())),
+		Mesh3d(cube.clone()),
 		GenericMaterial3d(asset_server.load("materials/animated.toml")),
 		Transform::from_xyz(-1.5, 0., 1.5),
 	));
 	commands.spawn((
-		Mesh3d(asset_server.add(Cuboid::from_length(1.).into())),
+		Mesh3d(cube),
 		GenericMaterial3d(asset_server.load("materials/sub-material.toml")),
 		Transform::from_xyz(1.5, 0., -1.5),
 	));
