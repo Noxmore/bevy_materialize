@@ -13,8 +13,8 @@ use serde::Deserialize;
 /// This allows you to modify data as it's being deserialized. For example, this system is used for loading assets, treating strings as paths.
 ///
 /// It's used much like Rust's iterator API, each processor having a child processor that is stored via generic. If you want to make your own, check out [`AssetLoadingProcessor`] for a simple example of an implementation.
-pub trait MaterialSubProcessor: Clone + Send + Sync + 'static {
-	type Child: MaterialSubProcessor;
+pub trait MaterialProcessor: Clone + Send + Sync + 'static {
+	type Child: MaterialProcessor;
 
 	fn child(&self) -> Option<&Self::Child>;
 
@@ -44,7 +44,7 @@ pub trait MaterialSubProcessor: Clone + Send + Sync + 'static {
 	}
 }
 
-impl MaterialSubProcessor for () {
+impl MaterialProcessor for () {
 	type Child = Self;
 	fn child(&self) -> Option<&Self::Child> {
 		None
@@ -63,8 +63,8 @@ impl MaterialSubProcessor for () {
 
 /// Material processor that loads assets from paths.
 #[derive(Clone)]
-pub struct AssetLoadingProcessor<P: MaterialSubProcessor>(pub P);
-impl<P: MaterialSubProcessor> MaterialSubProcessor for AssetLoadingProcessor<P> {
+pub struct AssetLoadingProcessor<P: MaterialProcessor>(pub P);
+impl<P: MaterialProcessor> MaterialProcessor for AssetLoadingProcessor<P> {
 	type Child = P;
 	fn child(&self) -> Option<&Self::Child> {
 		Some(&self.0)
@@ -89,7 +89,7 @@ impl<P: MaterialSubProcessor> MaterialSubProcessor for AssetLoadingProcessor<P> 
 	}
 }
 
-/// Data used for [`MaterialSubProcessor`]
+/// Data used for [`MaterialProcessor`]
 pub struct MaterialProcessorContext<'w, 'l> {
 	#[cfg(feature = "bevy_image")]
 	pub image_settings: ImageLoaderSettings,
@@ -109,20 +109,20 @@ impl MaterialProcessorContext<'_, '_> {
 	}
 }
 
-/// Contains a [`MaterialSubProcessor`] and context, and kicks off the processing.
-pub struct MaterialDeserializerProcessor<'w, 'l, P: MaterialSubProcessor> {
+/// Contains a [`MaterialProcessor`] and context, and kicks off the processing.
+pub struct MaterialDeserializerProcessor<'w, 'l, P: MaterialProcessor> {
 	pub ctx: MaterialProcessorContext<'w, 'l>,
-	pub sub_processor: &'l P,
+	pub material_processor: &'l P,
 }
 
-impl<P: MaterialSubProcessor> ReflectDeserializerProcessor for MaterialDeserializerProcessor<'_, '_, P> {
+impl<P: MaterialProcessor> ReflectDeserializerProcessor for MaterialDeserializerProcessor<'_, '_, P> {
 	fn try_deserialize<'de, D: serde::Deserializer<'de>>(
 		&mut self,
 		registration: &TypeRegistration,
 		registry: &TypeRegistry,
 		deserializer: D,
 	) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error> {
-		self.sub_processor
+		self.material_processor
 			.try_deserialize_recursive(&mut self.ctx, registration, registry, deserializer)
 	}
 }

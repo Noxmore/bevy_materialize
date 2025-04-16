@@ -188,7 +188,7 @@ TIP: Like other assets, if you start the path with a '/', it is relative to the 
 
 ## Processors
 
-`bevy_materialize` has a sub-processor API wrapping Bevy's [`ReflectDeserializerProcessor`](https://docs.rs/bevy/latest/bevy/reflect/serde/trait.ReflectDeserializerProcessor.html).
+`bevy_materialize` has a processor API wrapping Bevy's [`ReflectDeserializerProcessor`](https://docs.rs/bevy/latest/bevy/reflect/serde/trait.ReflectDeserializerProcessor.html).
 This allows you to modify data as it's being deserialized. For example, this system is used for loading assets, treating strings as paths.
 
 It's used much like Rust's iterator API, each processor having a child processor that is stored via generic. If you want to make your own, check out `AssetLoadingProcessor` for a simple example of an implementation, then use it with your `MaterializePlugin`.

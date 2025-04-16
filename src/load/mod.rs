@@ -18,7 +18,7 @@ use bevy::reflect::{serde::*, *};
 use bevy::tasks::ConditionalSendFuture;
 use bevy::{asset::LoadContext, prelude::*};
 use inheritance::apply_inheritance;
-use processor::{MaterialDeserializerProcessor, MaterialProcessorContext, MaterialSubProcessor};
+use processor::{MaterialDeserializerProcessor, MaterialProcessor, MaterialProcessorContext};
 use serde::Deserialize;
 
 use crate::generic_material::MaterialPropertyRegistry;
@@ -28,7 +28,7 @@ use crate::{prelude::*, value::GenericValue, GenericMaterialShorthands};
 use crate::{generic_material::ErasedMaterial, generic_material::ReflectGenericMaterial};
 use serde::de::DeserializeSeed;
 
-pub struct GenericMaterialLoader<D: MaterialDeserializer, P: MaterialSubProcessor> {
+pub struct GenericMaterialLoader<D: MaterialDeserializer, P: MaterialProcessor> {
 	pub type_registry: AppTypeRegistry,
 	pub shorthands: GenericMaterialShorthands,
 	pub property_registry: MaterialPropertyRegistry,
@@ -36,7 +36,7 @@ pub struct GenericMaterialLoader<D: MaterialDeserializer, P: MaterialSubProcesso
 	pub do_text_replacements: bool,
 	pub processor: P,
 }
-impl<D: MaterialDeserializer, P: MaterialSubProcessor> GenericMaterialLoader<D, P> {
+impl<D: MaterialDeserializer, P: MaterialProcessor> GenericMaterialLoader<D, P> {
 	/// Attempts to apply string replacements to a text-based material file. Currently these are hardcoded, but i'd prefer if eventually they won't be.
 	pub fn try_apply_replacements(&self, load_context: &LoadContext, bytes: Vec<u8>) -> Vec<u8> {
 		let mut s = match String::from_utf8(bytes) {
@@ -51,7 +51,7 @@ impl<D: MaterialDeserializer, P: MaterialSubProcessor> GenericMaterialLoader<D, 
 		s.into_bytes()
 	}
 }
-impl<D: MaterialDeserializer, P: MaterialSubProcessor> AssetLoader for GenericMaterialLoader<D, P> {
+impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMaterialLoader<D, P> {
 	type Asset = GenericMaterial;
 	#[cfg(feature = "bevy_image")]
 	type Settings = ImageLoaderSettings;
@@ -129,7 +129,7 @@ impl<D: MaterialDeserializer, P: MaterialSubProcessor> AssetLoader for GenericMa
 							load_context,
 							image_settings: settings.clone(),
 						},
-						sub_processor: &self.processor,
+						material_processor: &self.processor,
 					};
 
 					let data = TypedReflectDeserializer::with_processor(registration, &type_registry, &mut processor)
@@ -154,7 +154,7 @@ impl<D: MaterialDeserializer, P: MaterialSubProcessor> AssetLoader for GenericMa
 						#[cfg(feature = "bevy_image")]
 						image_settings: settings.clone(),
 					},
-					sub_processor: &self.processor,
+					material_processor: &self.processor,
 				};
 
 				for (key, value) in parsed_properties {

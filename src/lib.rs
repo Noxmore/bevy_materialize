@@ -19,13 +19,13 @@ use bevy::prelude::*;
 use generic_material::GenericMaterialApplied;
 use load::{
 	deserializer::MaterialDeserializer,
-	processor::{AssetLoadingProcessor, MaterialSubProcessor},
+	processor::{AssetLoadingProcessor, MaterialProcessor},
 	simple::SimpleGenericMaterialLoader,
 	GenericMaterialLoader, ReflectGenericMaterialLoadAppExt,
 };
 use prelude::*;
 
-pub struct MaterializePlugin<D: MaterialDeserializer, P: MaterialSubProcessor> {
+pub struct MaterializePlugin<D: MaterialDeserializer, P: MaterialProcessor> {
 	pub deserializer: Arc<D>,
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
 	pub simple_loader: Option<SimpleGenericMaterialLoader>,
@@ -33,7 +33,7 @@ pub struct MaterializePlugin<D: MaterialDeserializer, P: MaterialSubProcessor> {
 	pub do_text_replacements: bool,
 	pub processor: P,
 }
-impl<D: MaterialDeserializer, P: MaterialSubProcessor + Clone> Plugin for MaterializePlugin<D, P> {
+impl<D: MaterialDeserializer, P: MaterialProcessor + Clone> Plugin for MaterializePlugin<D, P> {
 	fn build(&self, app: &mut App) {
 		let type_registry = app.world().resource::<AppTypeRegistry>().clone();
 
@@ -89,7 +89,7 @@ impl<D: MaterialDeserializer> MaterializePlugin<D, AssetLoadingProcessor<()>> {
 	}
 }
 
-impl<D: MaterialDeserializer, P: MaterialSubProcessor> MaterializePlugin<D, P> {
+impl<D: MaterialDeserializer, P: MaterialProcessor> MaterializePlugin<D, P> {
 	pub fn new_with_processor(deserializer: D, processor: P) -> Self {
 		Self {
 			deserializer: Arc::new(deserializer),
@@ -127,7 +127,7 @@ impl<D: MaterialDeserializer, P: MaterialSubProcessor> MaterializePlugin<D, P> {
 	/// Adds a new processor to the processor stack. The function specified takes in the old processor and produces a new one.
 	///
 	/// Zero-sized processors are usually tuples, meaning you can just put their type name (e.g. `.with_processor(MyProcessor)`).
-	pub fn with_processor<NewP: MaterialSubProcessor>(self, f: impl FnOnce(P) -> NewP) -> MaterializePlugin<D, NewP> {
+	pub fn with_processor<NewP: MaterialProcessor>(self, f: impl FnOnce(P) -> NewP) -> MaterializePlugin<D, NewP> {
 		MaterializePlugin {
 			deserializer: self.deserializer,
 			simple_loader: self.simple_loader,
@@ -137,7 +137,7 @@ impl<D: MaterialDeserializer, P: MaterialSubProcessor> MaterializePlugin<D, P> {
 		}
 	}
 }
-impl<D: MaterialDeserializer + Default, P: MaterialSubProcessor + Default> Default for MaterializePlugin<D, P> {
+impl<D: MaterialDeserializer + Default, P: MaterialProcessor + Default> Default for MaterializePlugin<D, P> {
 	fn default() -> Self {
 		Self::new_with_processor(default(), default())
 	}

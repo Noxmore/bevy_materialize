@@ -8,7 +8,7 @@ use crate::load::ParsedGenericMaterial;
 use super::deserializer::MaterialDeserializer;
 use super::*;
 
-async fn read_path<D: MaterialDeserializer, P: MaterialSubProcessor>(
+async fn read_path<D: MaterialDeserializer, P: MaterialProcessor>(
 	loader: &GenericMaterialLoader<D, P>,
 	load_context: &mut LoadContext<'_>,
 	path: impl Into<AssetPath<'_>>,
@@ -24,7 +24,7 @@ async fn read_path<D: MaterialDeserializer, P: MaterialSubProcessor>(
 		.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))
 }
 
-pub(super) async fn apply_inheritance<D: MaterialDeserializer, P: MaterialSubProcessor>(
+pub(super) async fn apply_inheritance<D: MaterialDeserializer, P: MaterialProcessor>(
 	loader: &GenericMaterialLoader<D, P>,
 	load_context: &mut LoadContext<'_>,
 	sub_material: ParsedGenericMaterial<D::Value>,
