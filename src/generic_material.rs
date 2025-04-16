@@ -1,25 +1,21 @@
 use std::{
-	any::{type_name, TypeId},
-	borrow::Cow,
+	any::TypeId,
 	error::Error,
 	fmt, io,
 	sync::{Arc, RwLock},
 };
 
-use crate::{load::MaterialDeserializationProcessor, value::DirectGenericValue, value::GenericValue};
 use bevy::{
-	asset::AssetPath,
-	ecs::system::SystemParam,
 	platform::collections::HashMap,
 	prelude::*,
-	reflect::{ApplyError, TypeRegistration},
+	reflect::{ApplyError, GetTypeRegistration, TypeInfo, TypeRegistration},
 };
 
 #[cfg(feature = "bevy_pbr")]
 use bevy::{
 	asset::{LoadContext, UntypedAssetId},
 	ecs::{component::HookContext, world::DeferredWorld},
-	reflect::{GetTypeRegistration, ReflectMut, Typed},
+	reflect::{ReflectMut, Typed},
 };
 #[cfg(feature = "bevy_pbr")]
 use std::any::Any;
@@ -63,15 +59,9 @@ pub struct GenericMaterialApplied;
 pub struct GenericMaterial {
 	#[cfg(feature = "bevy_pbr")]
 	pub handle: Box<dyn ErasedMaterialHandle>,
-	// This could be better stored as a dyn PartialReflect with types like DynamicStruct,
-	// but as far as i can tell Bevy's deserialization infrastructure does not support that
-	pub properties: HashMap<String, Box<dyn GenericValue>>,
+	pub properties: HashMap<String, Box<dyn Reflect>>,
 }
 impl GenericMaterial {
-	/// Property that changes the visibility component of applied entities to this value.
-	#[cfg(feature = "bevy_pbr")]
-	pub const VISIBILITY: MaterialProperty<Visibility> = MaterialProperty::new("visibility", || Visibility::Inherited);
-
 	#[cfg(feature = "bevy_pbr")]
 	pub fn new(handle: impl Into<Box<dyn ErasedMaterialHandle>>) -> Self {
 		Self {
@@ -80,115 +70,53 @@ impl GenericMaterial {
 		}
 	}
 
-	/// Sets a property to a [`DirectGenericValue`] containing `value`.
-	pub fn set_property<T: PartialReflect + fmt::Debug + Clone + Send + Sync>(&mut self, property: MaterialProperty<T>, value: T) {
-		self.properties.insert(property.key.to_string(), Box::new(DirectGenericValue(value)));
-	}
-}
-
-/// Contains all necessary information to parse properties of a [`GenericMaterial`].
-#[derive(Clone)]
-pub struct GenericMaterialView<'w> {
-	pub material: &'w GenericMaterial,
-	pub id: AssetId<GenericMaterial>,
-	/// You can get an asset path with the supplied AssetServer, unless the asset is currently being loaded TODO ?
-	pub path: Option<Cow<'w, AssetPath<'static>>>,
-	pub asset_server: &'w AssetServer,
-	pub type_registry: &'w AppTypeRegistry,
-}
-impl GenericMaterialView<'_> {
-	pub fn get_property<T: PartialReflect>(&self, property: MaterialProperty<T>) -> Result<T, GenericMaterialError> {
-		let mut value = (property.default)();
-		let registry = self.type_registry.read();
-		let registration = registry
-			.get(TypeId::of::<T>())
-			.ok_or(GenericMaterialError::TypeNotRegistered(type_name::<T>()))?;
-
-		let mut processor = MaterialDeserializationProcessor::Loaded {
-			asset_server: self.asset_server,
-			path: self.path.as_ref().map(Cow::as_ref),
-		};
-
-		value.try_apply(
-			self.material
-				.properties
-				.get(property.key.as_ref())
-				.ok_or_else(|| GenericMaterialError::NoProperty(property.key.to_string()))?
-				.generic_deserialize(registration, &registry, &mut processor)
-				.map_err(GenericMaterialError::Deserialize)?
-				.as_ref(),
-		)?;
-
-		Ok(value)
+	/// Sets a property to `value`.
+	pub fn set_property<T: Reflect + fmt::Debug + Send + Sync>(&mut self, key: impl Into<String>, value: T) {
+		self.properties.insert(key.into(), Box::new(value));
 	}
 
-	/// Gets the property or default.
-	pub fn property<T: PartialReflect>(&self, property: MaterialProperty<T>) -> T {
-		let default = property.default;
-		self.get_property(property).ok().unwrap_or_else(default)
-	}
-}
-
-#[derive(SystemParam)]
-pub struct GenericMaterials<'w> {
-	type_registry: Res<'w, AppTypeRegistry>,
-	asset_server: Res<'w, AssetServer>,
-	pub assets: Res<'w, Assets<GenericMaterial>>,
-}
-impl GenericMaterials<'_> {
-	pub fn get(&self, id: impl Into<AssetId<GenericMaterial>>) -> Option<GenericMaterialView> {
-		let id = id.into();
-		let material = self.assets.get(id)?;
-		let path = self.asset_server.get_path(id).map(AssetPath::into_owned).map(Cow::Owned);
-
-		Some(GenericMaterialView {
-			material,
-			id,
-			path,
-			asset_server: &self.asset_server,
-			type_registry: &self.type_registry,
-		})
-	}
-
-	pub fn iter(&self) -> impl Iterator<Item = GenericMaterialView> {
-		// self.asset_server.get_path(id)
-		self.assets.iter().map(|(id, material)| GenericMaterialView {
-			material,
-			id,
-			path: self.asset_server.get_path(id).map(AssetPath::into_owned).map(Cow::Owned),
-			asset_server: &self.asset_server,
-			type_registry: &self.type_registry,
+	/// Attempts to get the specified property as `T`.
+	pub fn get_property<T: Reflect>(&self, key: &str) -> Result<&T, GetPropertyError> {
+		let value = self.properties.get(key).ok_or(GetPropertyError::NotFound)?;
+		value.downcast_ref().ok_or(GetPropertyError::WrongType {
+			found: value.get_represented_type_info(),
 		})
 	}
 }
 
-/// User-defined property about a material. These are stored in the [`GenericMaterial`] namespace, so custom properties should be created via an extension trait.
-///
-/// To be used with [`GenericMaterialView::property`] or [`GenericMaterialView::get_property`].
-///
-/// # Examples
-/// ```
-/// use bevy_materialize::prelude::*;
-///
-/// pub trait MyMaterialPropertiesExt {
-///     const MY_PROPERTY: MaterialProperty<f32> = MaterialProperty::new("my_property", || 5.);
-/// }
-/// impl MyMaterialPropertiesExt for GenericMaterial {}
-///
-/// // Then we can get property like so
-/// let _ = GenericMaterial::MY_PROPERTY;
-/// ```
-pub struct MaterialProperty<T> {
-	pub key: Cow<'static, str>,
-	pub default: fn() -> T,
+#[derive(Error, Debug, Clone)]
+pub enum GetPropertyError {
+	#[error("Property not found")]
+	NotFound,
+	#[error("Property found doesn't have the required type. Type found: {:?}", found.map(TypeInfo::type_path))]
+	WrongType { found: Option<&'static TypeInfo> },
 }
 
-impl<T: PartialReflect> MaterialProperty<T> {
-	pub const fn new(key: &'static str, default: fn() -> T) -> Self {
-		Self {
-			key: Cow::Borrowed(key),
-			default,
+/// Maps property names to the types they represent.
+#[derive(Resource, Debug, Clone, Default)]
+pub struct MaterialPropertyRegistry {
+	pub inner: Arc<RwLock<HashMap<String, TypeId>>>,
+}
+
+pub trait MaterialPropertyAppExt {
+	/// Registers material properties with the specified key to try to deserialize into `T`.
+	///
+	/// Also registers the type if it hasn't been already.
+	fn register_material_property<T: Reflect + GetTypeRegistration>(&mut self, key: impl Into<String>) -> &mut Self;
+}
+impl MaterialPropertyAppExt for App {
+	fn register_material_property<T: Reflect + GetTypeRegistration>(&mut self, key: impl Into<String>) -> &mut Self {
+		let mut type_registry = self.world().resource::<AppTypeRegistry>().write();
+		if type_registry.get(TypeId::of::<T>()).is_none() {
+			type_registry.register::<T>();
 		}
+		drop(type_registry);
+
+		let mut property_map = self.world().resource::<MaterialPropertyRegistry>().inner.write().unwrap();
+		property_map.insert(key.into(), TypeId::of::<T>());
+		drop(property_map);
+
+		self
 	}
 }
 
@@ -247,7 +175,7 @@ impl Clone for Box<dyn ErasedMaterial> {
 
 #[cfg(feature = "bevy_pbr")]
 pub trait ErasedMaterialHandle: Send + Sync + fmt::Debug + Any {
-	fn clone_into_erased(&self) -> Box<dyn ErasedMaterialHandle>;
+	fn clone_erased(&self) -> Box<dyn ErasedMaterialHandle>;
 	fn insert(&self, entity: EntityWorldMut);
 	fn remove(&self, entity: EntityWorldMut);
 	fn to_untyped_handle(&self) -> UntypedHandle;
@@ -258,8 +186,7 @@ pub trait ErasedMaterialHandle: Send + Sync + fmt::Debug + Any {
 }
 #[cfg(feature = "bevy_pbr")]
 impl<M: Material + Reflect> ErasedMaterialHandle for Handle<M> {
-	// A lot of cloning here! Fun!
-	fn clone_into_erased(&self) -> Box<dyn ErasedMaterialHandle> {
+	fn clone_erased(&self) -> Box<dyn ErasedMaterialHandle> {
 		self.clone().into()
 	}
 
@@ -303,7 +230,7 @@ impl<M: Material + Reflect> From<Handle<M>> for Box<dyn ErasedMaterialHandle> {
 #[cfg(feature = "bevy_pbr")]
 impl Clone for Box<dyn ErasedMaterialHandle> {
 	fn clone(&self) -> Self {
-		self.clone_into_erased()
+		self.clone_erased()
 	}
 }
 
@@ -367,6 +294,14 @@ pub enum GenericMaterialError {
 	NoProperty(String),
 	#[error("Type not registered: {0}")]
 	TypeNotRegistered(&'static str),
+	#[error("Property {0} found, but was not registered to any type. Use `App::register_material_property` to register it")]
+	PropertyNotRegistered(String),
+	#[error("Property {0} found and was registered, but the type it points to isn't registered in the type registry")]
+	PropertyTypeNotRegistered(String),
+	#[error("Could not get `ReflectFromReflect` for type {0}")]
+	NoFromReflect(&'static str),
+	#[error("Could not fully reflect property of type {:?}", ty.map(TypeInfo::type_path))]
+	FullReflect { ty: Option<&'static TypeInfo> },
 
 	#[error("in field {0} - {1}")]
 	InField(String, Box<Self>),

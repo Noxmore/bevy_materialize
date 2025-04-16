@@ -13,7 +13,7 @@ pub struct SimpleGenericMaterialLoader {
 	/// A function that provides the underlying material given the loaded image. Default is a [`StandardMaterial`] with `perceptual_roughness` set to 1.
 	#[cfg(feature = "bevy_pbr")]
 	pub material: fn(Handle<Image>) -> Box<dyn ErasedMaterial>,
-	pub properties: fn() -> HashMap<String, Box<dyn GenericValue>>,
+	pub properties: fn() -> HashMap<String, Box<dyn Reflect>>,
 }
 impl AssetLoader for SimpleGenericMaterialLoader {
 	type Asset = GenericMaterial;

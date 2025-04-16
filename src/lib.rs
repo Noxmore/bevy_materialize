@@ -12,21 +12,30 @@ use std::sync::Arc;
 
 #[cfg(feature = "bevy_pbr")]
 use bevy::reflect::GetTypeRegistration;
-use generic_material::GenericMaterialShorthands;
+use generic_material::{GenericMaterialShorthands, MaterialPropertyRegistry};
 
 use bevy::prelude::*;
 #[cfg(feature = "bevy_pbr")]
 use generic_material::GenericMaterialApplied;
-use load::{deserializer::MaterialDeserializer, simple::SimpleGenericMaterialLoader, GenericMaterialLoader, ReflectGenericMaterialLoadAppExt};
+use load::{
+	deserializer::MaterialDeserializer,
+	processor::{AssetLoadingProcessor, MaterialSubProcessor},
+	simple::SimpleGenericMaterialLoader,
+	GenericMaterialLoader, ReflectGenericMaterialLoadAppExt,
+};
 use prelude::*;
 
-pub struct MaterializePlugin<D: MaterialDeserializer> {
+pub const VISIBILITY_PROPERTY_KEY: &str = "visibility";
+
+pub struct MaterializePlugin<D: MaterialDeserializer, P: MaterialSubProcessor> {
 	pub deserializer: Arc<D>,
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
 	pub simple_loader: Option<SimpleGenericMaterialLoader>,
+	pub animated_materials: bool,
 	pub do_text_replacements: bool,
+	pub processor: P,
 }
-impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
+impl<D: MaterialDeserializer, P: MaterialSubProcessor + Clone> Plugin for MaterializePlugin<D, P> {
 	fn build(&self, app: &mut App) {
 		let type_registry = app.world().resource::<AppTypeRegistry>().clone();
 
@@ -35,21 +44,29 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 		}
 
 		let shorthands = GenericMaterialShorthands::default();
+		let property_registry = MaterialPropertyRegistry::default();
 
 		#[rustfmt::skip]
 		app
-			.add_plugins((MaterializeMarkerPlugin, animation::AnimationPlugin))
+			.add_plugins(MaterializeMarkerPlugin)
 			.insert_resource(shorthands.clone())
+			.insert_resource(property_registry.clone())
 			.register_type::<GenericMaterial3d>()
 			.init_asset::<GenericMaterial>()
 			.register_generic_material_sub_asset_image_settings_passthrough::<GenericMaterial>()
 			.register_asset_loader(GenericMaterialLoader {
 				type_registry,
 				shorthands,
+				property_registry,
 				deserializer: self.deserializer.clone(),
 				do_text_replacements: self.do_text_replacements,
+				processor: self.processor.clone(),
 			})
 		;
+
+		if self.animated_materials {
+			app.add_plugins(animation::AnimationPlugin);
+		}
 
 		#[cfg(feature = "bevy_image")]
 		app.register_generic_material_sub_asset_image_settings_passthrough::<Image>();
@@ -57,6 +74,7 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 		#[cfg(feature = "bevy_pbr")]
 		#[rustfmt::skip]
 		app
+			.register_material_property::<Visibility>(VISIBILITY_PROPERTY_KEY)
 			.register_generic_material::<StandardMaterial>()
 			.add_systems(PreUpdate, reload_generic_materials)
 			.add_systems(PostUpdate, (
@@ -66,30 +84,64 @@ impl<D: MaterialDeserializer> Plugin for MaterializePlugin<D> {
 		;
 	}
 }
-impl<D: MaterialDeserializer> MaterializePlugin<D> {
+impl<D: MaterialDeserializer> MaterializePlugin<D, AssetLoadingProcessor<()>> {
+	/// Creates a new [`MaterializePlugin`] with an asset loading processor.
 	pub fn new(deserializer: D) -> Self {
+		Self::new_with_processor(deserializer, AssetLoadingProcessor(()))
+	}
+}
+
+impl<D: MaterialDeserializer, P: MaterialSubProcessor> MaterializePlugin<D, P> {
+	pub fn new_with_processor(deserializer: D, processor: P) -> Self {
 		Self {
 			deserializer: Arc::new(deserializer),
 			simple_loader: Some(default()),
+			animated_materials: true,
 			do_text_replacements: true,
+			processor,
 		}
 	}
 
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
-	pub fn with_simple_loader(mut self, loader: Option<SimpleGenericMaterialLoader>) -> Self {
-		self.simple_loader = loader;
-		self
+	pub fn with_simple_loader(self, loader: Option<SimpleGenericMaterialLoader>) -> Self {
+		Self {
+			simple_loader: loader,
+			..self
+		}
 	}
 
 	/// Whether to replace special patterns in text, such as replacing `${name}` with the name of the material loading. (Default: `true`)
-	pub fn with_text_replacements(mut self, value: bool) -> Self {
-		self.do_text_replacements = value;
-		self
+	pub fn with_text_replacements(self, value: bool) -> Self {
+		Self {
+			do_text_replacements: value,
+			..self
+		}
+	}
+
+	/// Whether to enable builtin material animation. (Default: `true`)
+	pub fn with_animated_materials(self, value: bool) -> Self {
+		Self {
+			animated_materials: value,
+			..self
+		}
+	}
+
+	/// Adds a new processor to the processor stack. The function specified takes in the old processor and produces a new one.
+	///
+	/// Zero-sized processors are usually tuples, meaning you can just put their type name (e.g. `.with_processor(MyProcessor)`).
+	pub fn with_processor<NewP: MaterialSubProcessor>(self, f: impl FnOnce(P) -> NewP) -> MaterializePlugin<D, NewP> {
+		MaterializePlugin {
+			deserializer: self.deserializer,
+			simple_loader: self.simple_loader,
+			animated_materials: self.animated_materials,
+			do_text_replacements: self.do_text_replacements,
+			processor: f(self.processor),
+		}
 	}
 }
-impl<D: MaterialDeserializer + Default> Default for MaterializePlugin<D> {
+impl<D: MaterialDeserializer + Default, P: MaterialSubProcessor + Default> Default for MaterializePlugin<D, P> {
 	fn default() -> Self {
-		Self::new(default())
+		Self::new_with_processor(default(), default())
 	}
 }
 
@@ -99,7 +151,7 @@ impl Plugin for MaterializeMarkerPlugin {
 	fn build(&self, _app: &mut App) {}
 }
 
-// Can't have these in a MaterializePlugin impl because of the generic.
+// Can't have these in a MaterializePlugin impl because of the generics.
 // ////////////////////////////////////////////////////////////////////////////////
 // // SYSTEMS
 // ////////////////////////////////////////////////////////////////////////////////
@@ -141,13 +193,13 @@ pub fn reload_generic_materials(
 #[cfg(feature = "bevy_pbr")]
 pub fn visibility_material_property(
 	mut query: Query<(&GenericMaterial3d, &mut Visibility), Without<GenericMaterialApplied>>,
-	generic_materials: GenericMaterials,
+	generic_materials: Res<Assets<GenericMaterial>>,
 ) {
 	for (generic_material_holder, mut visibility) in &mut query {
 		let Some(generic_material) = generic_materials.get(&generic_material_holder.0) else { continue };
-		let Ok(new_visibility) = generic_material.get_property(GenericMaterial::VISIBILITY) else { continue };
+		let Ok(new_visibility) = generic_material.get_property::<Visibility>(VISIBILITY_PROPERTY_KEY) else { continue };
 
-		*visibility = new_visibility;
+		*visibility = *new_visibility;
 	}
 }
 

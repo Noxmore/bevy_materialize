@@ -1,10 +1,16 @@
 use bevy::prelude::*;
 use bevy_materialize::prelude::*;
 
+// These are stored as constants for ease of refactoring.
+pub const COLLISION_PROPERTY_KEY: &str = "collision";
+pub const SOUNDS_PROPERTY_KEY: &str = "sounds";
+
 fn main() {
 	App::new()
 		.add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
 		.add_plugins(MaterializePlugin::new(TomlMaterialDeserializer))
+		.register_material_property::<bool>(COLLISION_PROPERTY_KEY)
+		.register_material_property::<String>(SOUNDS_PROPERTY_KEY)
 		.insert_resource(AmbientLight {
 			brightness: 1000.,
 			..default()

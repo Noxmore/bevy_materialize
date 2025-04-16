@@ -1,5 +1,6 @@
 pub mod deserializer;
 pub mod inheritance;
+pub mod processor;
 pub mod simple;
 
 use std::any::TypeId;
@@ -17,22 +18,25 @@ use bevy::reflect::{serde::*, *};
 use bevy::tasks::ConditionalSendFuture;
 use bevy::{asset::LoadContext, prelude::*};
 use inheritance::apply_inheritance;
+use processor::{MaterialDeserializerProcessor, MaterialProcessorContext, MaterialSubProcessor};
 use serde::Deserialize;
 
+use crate::generic_material::MaterialPropertyRegistry;
 use crate::{prelude::*, value::GenericValue, GenericMaterialShorthands};
 
 #[cfg(feature = "bevy_pbr")]
 use crate::{generic_material::ErasedMaterial, generic_material::ReflectGenericMaterial};
-#[cfg(feature = "bevy_pbr")]
 use serde::de::DeserializeSeed;
 
-pub struct GenericMaterialLoader<D: MaterialDeserializer> {
+pub struct GenericMaterialLoader<D: MaterialDeserializer, P: MaterialSubProcessor> {
 	pub type_registry: AppTypeRegistry,
 	pub shorthands: GenericMaterialShorthands,
+	pub property_registry: MaterialPropertyRegistry,
 	pub deserializer: Arc<D>,
 	pub do_text_replacements: bool,
+	pub processor: P,
 }
-impl<D: MaterialDeserializer> GenericMaterialLoader<D> {
+impl<D: MaterialDeserializer, P: MaterialSubProcessor> GenericMaterialLoader<D, P> {
 	/// Attempts to apply string replacements to a text-based material file. Currently these are hardcoded, but i'd prefer if eventually they won't be.
 	pub fn try_apply_replacements(&self, load_context: &LoadContext, bytes: Vec<u8>) -> Vec<u8> {
 		let mut s = match String::from_utf8(bytes) {
@@ -47,7 +51,7 @@ impl<D: MaterialDeserializer> GenericMaterialLoader<D> {
 		s.into_bytes()
 	}
 }
-impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
+impl<D: MaterialDeserializer, P: MaterialSubProcessor> AssetLoader for GenericMaterialLoader<D, P> {
 	type Asset = GenericMaterial;
 	#[cfg(feature = "bevy_image")]
 	type Settings = ImageLoaderSettings;
@@ -82,7 +86,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 			let mat = {
 				let type_name = parsed.ty.as_deref().unwrap_or(StandardMaterial::type_path());
 
-				let registry = self.type_registry.read();
+				let type_registry = self.type_registry.read();
 
 				let mut registration_candidates = Vec::new();
 
@@ -93,7 +97,7 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 					}
 				}
 
-				for reg in registry.iter() {
+				for reg in type_registry.iter() {
 					if reg.type_info().type_path() == type_name || reg.type_info().type_path_table().short_path() == type_name {
 						registration_candidates.push(reg);
 					}
@@ -110,21 +114,25 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 							.collect(),
 					));
 				}
-				let reg = registration_candidates[0];
+				let registration = registration_candidates[0];
 
-				let Some(mut mat) = registry
-					.get_type_data::<ReflectGenericMaterial>(reg.type_id())
+				let Some(mut mat) = type_registry
+					.get_type_data::<ReflectGenericMaterial>(registration.type_id())
 					.map(ReflectGenericMaterial::default)
 				else {
-					panic!("{} isn't a registered generic material", reg.type_info().type_path());
+					panic!("{} isn't a registered generic material", registration.type_info().type_path());
 				};
 
 				if let Some(material) = parsed.material {
-					let mut processor = MaterialDeserializationProcessor::Loading {
-						load_context,
-						image_settings: settings.clone(),
+					let mut processor = MaterialDeserializerProcessor {
+						ctx: MaterialProcessorContext {
+							load_context,
+							image_settings: settings.clone(),
+						},
+						sub_processor: &self.processor,
 					};
-					let data = TypedReflectDeserializer::with_processor(reg, &registry, &mut processor)
+
+					let data = TypedReflectDeserializer::with_processor(registration, &type_registry, &mut processor)
 						.deserialize(material)
 						.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
 
@@ -134,11 +142,43 @@ impl<D: MaterialDeserializer> AssetLoader for GenericMaterialLoader<D> {
 				mat
 			};
 
-			let mut properties: HashMap<String, Box<dyn GenericValue>> = HashMap::default();
+			let mut properties: HashMap<String, Box<dyn Reflect>> = HashMap::default();
 
 			if let Some(parsed_properties) = parsed.properties {
+				let type_registry = self.type_registry.read();
+				let property_registry = self.property_registry.inner.read().unwrap();
+
+				let mut processor = MaterialDeserializerProcessor {
+					ctx: MaterialProcessorContext {
+						load_context,
+						#[cfg(feature = "bevy_image")]
+						image_settings: settings.clone(),
+					},
+					sub_processor: &self.processor,
+				};
+
 				for (key, value) in parsed_properties {
-					properties.insert(key, Box::new(value));
+					let Some(type_id) = property_registry.get(&key).copied() else {
+						return Err(GenericMaterialError::PropertyNotRegistered(key));
+					};
+					let Some(registration) = type_registry.get(type_id) else {
+						return Err(GenericMaterialError::PropertyTypeNotRegistered(key));
+					};
+					let Some(from_reflect) = registration.data::<ReflectFromReflect>() else {
+						return Err(GenericMaterialError::NoFromReflect(registration.type_info().type_path()));
+					};
+
+					let partial_data = TypedReflectDeserializer::with_processor(registration, &type_registry, &mut processor)
+						.deserialize(value)
+						.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
+
+					let Some(data) = from_reflect.from_reflect(&*partial_data) else {
+						return Err(GenericMaterialError::FullReflect {
+							ty: partial_data.get_represented_type_info(),
+						});
+					};
+
+					properties.insert(key, data);
 				}
 			}
 
@@ -168,7 +208,7 @@ struct ParsedGenericMaterial<Value: GenericValue> {
 
 #[derive(Debug, Clone)]
 pub struct ReflectGenericMaterialLoad {
-	pub load: fn(&mut MaterialDeserializationProcessor, AssetPath<'static>) -> Box<dyn PartialReflect>,
+	pub load: fn(&mut MaterialProcessorContext, AssetPath<'static>) -> Box<dyn PartialReflect>,
 }
 
 pub trait ReflectGenericMaterialLoadAppExt {
@@ -192,7 +232,7 @@ impl ReflectGenericMaterialLoadAppExt for App {
 		};
 
 		registration.insert(ReflectGenericMaterialLoad {
-			load: |processor, path| Box::new(processor.load::<A>(path)),
+			load: |processor, path| Box::new(processor.load_context.load::<A>(path)),
 		});
 
 		drop(type_registry);
@@ -215,68 +255,6 @@ impl ReflectGenericMaterialLoadAppExt for App {
 		drop(type_registry);
 
 		self
-	}
-}
-
-pub enum MaterialDeserializationProcessor<'w, 'l> {
-	Loading {
-		#[cfg(feature = "bevy_image")]
-		image_settings: ImageLoaderSettings,
-		load_context: &'l mut LoadContext<'w>,
-	},
-	Loaded {
-		asset_server: &'w AssetServer,
-		path: Option<&'l AssetPath<'static>>,
-	},
-}
-impl MaterialDeserializationProcessor<'_, '_> {
-	pub fn asset_path(&self) -> Option<&AssetPath<'static>> {
-		match self {
-			Self::Loading { load_context, .. } => Some(load_context.asset_path()),
-			Self::Loaded { path, .. } => *path,
-		}
-	}
-
-	/// Same as [`load`](Self::load) but passes image load settings through.
-	pub fn load_with_image_settings<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
-		match self {
-			#[cfg(feature = "bevy_image")]
-			Self::Loading {
-				load_context,
-				image_settings,
-			} => load_context.loader().with_settings(set_image_loader_settings(image_settings)).load(path),
-			#[cfg(not(feature = "bevy_image"))]
-			Self::Loading { load_context } => load_context.load(path),
-
-			Self::Loaded { asset_server, .. } => asset_server.load(path),
-		}
-	}
-
-	pub fn load<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
-		match self {
-			Self::Loading { load_context, .. } => load_context.load(path),
-			Self::Loaded { asset_server, .. } => asset_server.load(path),
-		}
-	}
-}
-impl ReflectDeserializerProcessor for MaterialDeserializationProcessor<'_, '_> {
-	fn try_deserialize<'de, D: serde::Deserializer<'de>>(
-		&mut self,
-		registration: &TypeRegistration,
-		_registry: &TypeRegistry,
-		deserializer: D,
-	) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error> {
-		if let Some(asset_path) = self.asset_path() {
-			if let Some(loader) = registration.data::<ReflectGenericMaterialLoad>() {
-				let path = String::deserialize(deserializer)?;
-
-				let path = relative_asset_path(asset_path, &path).map_err(serde::de::Error::custom)?;
-
-				return Ok(Ok((loader.load)(self, path)));
-			}
-		}
-
-		Ok(Err(deserializer))
 	}
 }
 
@@ -326,6 +304,8 @@ pub fn create_loading_test_app(deserializer: impl MaterialDeserializer) -> App {
 		ImagePlugin::default(),
 		MaterializePlugin::new(deserializer),
 	))
+	.register_material_property::<bool>("collision")
+	.register_material_property::<String>("sounds")
 	.init_asset::<StandardMaterial>();
 
 	app

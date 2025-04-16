@@ -5,14 +5,19 @@ use bevy::{
 	prelude::*,
 };
 
-use crate::prelude::*;
+use crate::{
+	generic_material::{GetPropertyError, MaterialPropertyAppExt},
+	prelude::*,
+};
+
+pub const ANIMATION_PROPERTY_KEY: &str = "animation";
 
 pub struct AnimationPlugin;
 impl Plugin for AnimationPlugin {
 	fn build(&self, app: &mut App) {
 		#[rustfmt::skip]
 		app
-			.register_type::<MaterialAnimations>()
+			.register_material_property::<MaterialAnimations>(ANIMATION_PROPERTY_KEY)
 			.init_resource::<AnimatedGenericMaterials>()
 			.add_systems(Update, Self::animate_materials)
 		;
@@ -26,11 +31,10 @@ impl Plugin for AnimationPlugin {
 impl AnimationPlugin {
 	pub fn setup_animated_materials(
 		mut animated_materials: ResMut<AnimatedGenericMaterials>,
-		generic_materials: GenericMaterials,
+		generic_materials: Res<Assets<GenericMaterial>>,
 		time: Res<Time>,
 
 		mut asset_events: EventReader<AssetEvent<GenericMaterial>>,
-
 		mut failed_reading: Local<HashSet<AssetId<GenericMaterial>>>,
 	) {
 		for event in asset_events.read() {
@@ -40,16 +44,18 @@ impl AnimationPlugin {
 			animated_materials.states.remove(id);
 		}
 
-		for view in generic_materials.iter() {
-			if failed_reading.contains(&view.id) || animated_materials.states.contains_key(&view.id) {
+		for (id, generic_material) in generic_materials.iter() {
+			// Already set up or failed
+			if failed_reading.contains(&id) || animated_materials.states.contains_key(&id) {
 				continue;
 			}
-			let mut animations = match view.get_property(GenericMaterial::ANIMATION) {
-				Ok(v) => v,
-				Err(GenericMaterialError::NoProperty(_)) => continue,
+
+			let mut animations = match generic_material.get_property::<MaterialAnimations>(ANIMATION_PROPERTY_KEY).cloned() {
+				Ok(x) => x,
+				Err(GetPropertyError::NotFound) => continue,
 				Err(err) => {
-					error!("Failed to read animation property from GenericMaterial {:?}: {err}", view.id);
-					failed_reading.insert(view.id);
+					error!("Failed to read animation property from GenericMaterial: {err}");
+					failed_reading.insert(id);
 					continue;
 				}
 			};
@@ -59,7 +65,7 @@ impl AnimationPlugin {
 				animation.state.next_frame_time = animation.new_next_frame_time(time.elapsed());
 			}
 
-			animated_materials.states.insert(view.id, animations);
+			animated_materials.states.insert(id, animations);
 		}
 	}
 
@@ -106,10 +112,6 @@ impl AnimationPlugin {
 			}
 		}
 	}
-}
-
-impl GenericMaterial {
-	pub const ANIMATION: MaterialProperty<MaterialAnimations> = MaterialProperty::new("animation", default);
 }
 
 /// Stores the states and animations of [`GenericMaterial`]s.
