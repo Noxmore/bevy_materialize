@@ -99,9 +99,7 @@ use bevy::prelude::*;
 use bevy_materialize::prelude::*;
 use bevy_materialize::generic_material::GetPropertyError;
 
-fn retrieve_properties_example(
-    material: GenericMaterial,
-) {
+fn retrieve_properties_example(material: &GenericMaterial) {
     // The type returned is based on the generic of the property. For example, VISIBILITY is a MaterialProperty<Visibility>.
     let _: Result<&Visibility, GetPropertyError> = material.get_property(GenericMaterial::VISIBILITY);
 }
