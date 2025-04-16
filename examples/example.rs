@@ -23,7 +23,7 @@ fn main() {
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 	let cube = asset_server.add(Cuboid::from_length(1.).into());
-	
+
 	commands.spawn((
 		Mesh3d(cube.clone()),
 		GenericMaterial3d(asset_server.load("materials/example.material.toml")),

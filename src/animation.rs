@@ -11,6 +11,9 @@ use crate::{
 };
 
 impl GenericMaterial {
+	/// Material property supporting animation, only works if [`MaterializePlugin::animated_materials`] is enabled.
+	///
+	/// See docs for [`MaterialAnimations`] for more information.
 	pub const ANIMATION: MaterialProperty<MaterialAnimations> = MaterialProperty::new("animation");
 }
 
@@ -31,6 +34,7 @@ impl Plugin for AnimationPlugin {
 	}
 }
 impl AnimationPlugin {
+	/// Sets up materials using the [`ANIMATION`](GenericMaterial::ANIMATION) property, and reports errors if they're invalid.
 	pub fn setup_animated_materials(
 		mut animated_materials: ResMut<AnimatedGenericMaterials>,
 		generic_materials: Res<Assets<GenericMaterial>>,
@@ -71,6 +75,7 @@ impl AnimationPlugin {
 		}
 	}
 
+	/// Animates generic materials with the [`ANIMATION`](GenericMaterial::ANIMATION) property.
 	pub fn animate_materials(
 		mut commands: Commands,
 		mut animated_materials: ResMut<AnimatedGenericMaterials>,
@@ -92,7 +97,7 @@ impl AnimationPlugin {
 							continue;
 						}
 
-						commands.entity(entity).insert(GenericMaterial3d(animation.value.clone()));
+						commands.entity(entity).insert(GenericMaterial3d(animation.material.clone()));
 					}
 				}
 			}
@@ -104,7 +109,7 @@ impl AnimationPlugin {
 					animation.advance_frame(now);
 					let Some(generic_material) = generic_materials.get(*id) else { continue };
 
-					for (field_name, frames) in &animation.value {
+					for (field_name, frames) in &animation.fields {
 						let new_idx = animation.state.current_frame % frames.len();
 						generic_material
 							.handle
@@ -123,41 +128,77 @@ pub struct AnimatedGenericMaterials {
 }
 
 /// Animations stored in a [`GenericMaterial`].
-#[derive(Reflect, Debug, Clone, Default)]
+///
+/// Stores both [`NextAnimation`], which allows the material to switch to another after a period of time,
+/// and [`ImagesAnimation`], which allows different image fields to cycle a list of images at a specified framerate.
+///
+/// For practical examples of how to use these, see the associated examples in the repo.
+#[derive(Reflect, Debug, Clone)]
 pub struct MaterialAnimations {
 	pub next: Option<NextAnimation>,
 	pub images: Option<ImagesAnimation>,
 }
 
-#[derive(Reflect, Debug, Clone, Default)]
-pub struct MaterialAnimation<T> {
-	pub fps: f32,
-	pub value: T,
+/// Functionality shared across different animations.
+pub trait MaterialAnimation {
+	fn state_mut(&mut self) -> &mut GenericMaterialAnimationState;
+
+	/// Increases current frame and updates when the next frame is scheduled.
+	fn advance_frame(&mut self, current_time: Duration) {
+		let new_next_frame_time = self.new_next_frame_time(current_time);
+
+		let state = self.state_mut();
+		state.current_frame = state.current_frame.wrapping_add(1);
+		state.next_frame_time = new_next_frame_time;
+	}
+
+	/// This returns when in the future (from `current_time`) the frame should advance again.
+	fn new_next_frame_time(&self, current_time: Duration) -> Duration;
+}
+
+/// Switch to [`material`](Self::material) after [`seconds`](Self::seconds).
+#[derive(Reflect, Debug, Clone)]
+pub struct NextAnimation {
+	pub seconds: f32,
+	pub material: Handle<GenericMaterial>,
 
 	#[reflect(ignore)]
 	pub state: GenericMaterialAnimationState,
 }
-impl<T> MaterialAnimation<T> {
-	/// Increases current frame and updates when the next frame is scheduled.
-	pub fn advance_frame(&mut self, current_time: Duration) {
-		self.state.current_frame = self.state.current_frame.wrapping_add(1);
-		self.state.next_frame_time = self.new_next_frame_time(current_time);
+impl MaterialAnimation for NextAnimation {
+	fn state_mut(&mut self) -> &mut GenericMaterialAnimationState {
+		&mut self.state
 	}
 
-	/// This returns when in the future (from `current_time`) the frame should advance again.
-	pub fn new_next_frame_time(&self, current_time: Duration) -> Duration {
+	fn new_next_frame_time(&self, current_time: Duration) -> Duration {
+		current_time + Duration::from_secs_f32(self.seconds)
+	}
+}
+
+/// Allows different image [`fields`](Self::fields) to cycle a list of images at a specified [`fps`](Self::fps).
+#[derive(Reflect, Debug, Clone)]
+pub struct ImagesAnimation {
+	pub fps: f32,
+	#[cfg(feature = "bevy_image")]
+	pub fields: HashMap<String, Vec<Handle<Image>>>,
+	#[cfg(not(feature = "bevy_image"))]
+	pub fields: HashMap<String, Vec<String>>,
+
+	#[reflect(ignore)]
+	pub state: GenericMaterialAnimationState,
+}
+impl MaterialAnimation for ImagesAnimation {
+	fn state_mut(&mut self) -> &mut GenericMaterialAnimationState {
+		&mut self.state
+	}
+
+	fn new_next_frame_time(&self, current_time: Duration) -> Duration {
 		current_time + Duration::from_secs_f32(1. / self.fps)
 	}
 }
 
-pub type NextAnimation = MaterialAnimation<Handle<GenericMaterial>>;
-#[cfg(feature = "bevy_image")]
-pub type ImagesAnimation = MaterialAnimation<HashMap<String, Vec<Handle<Image>>>>;
-#[cfg(not(feature = "bevy_image"))]
-pub type ImagesAnimation = MaterialAnimation<HashMap<String, Vec<String>>>;
-
 /// Stores the current frame, and schedules when the next frame should occur.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct GenericMaterialAnimationState {
 	/// Is [`usize::MAX`] by default so it'll wrap around immediately to frame 0.
 	pub current_frame: usize,

@@ -8,11 +8,12 @@ use crate::load::ParsedGenericMaterial;
 use super::deserializer::MaterialDeserializer;
 use super::*;
 
+/// Helper function to read and parse a generic material file.
 async fn read_path<D: MaterialDeserializer, P: MaterialProcessor>(
 	loader: &GenericMaterialLoader<D, P>,
 	load_context: &mut LoadContext<'_>,
 	path: impl Into<AssetPath<'_>>,
-) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialError> {
+) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialLoadError> {
 	let mut bytes = load_context.read_asset_bytes(path).await.map_err(io::Error::other)?;
 	if loader.do_text_replacements {
 		bytes = loader.try_apply_replacements(load_context, bytes);
@@ -21,14 +22,16 @@ async fn read_path<D: MaterialDeserializer, P: MaterialProcessor>(
 	loader
 		.deserializer
 		.deserialize(&bytes)
-		.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))
+		.map_err(|err| GenericMaterialLoadError::Deserialize(Box::new(err)))
 }
 
+/// Applies inheritance to a parsed generic material by repeatedly reading the `inherits` field until it finds the top-most material,
+/// then iteratively merging the material below into it until the final material is produced.
 pub(super) async fn apply_inheritance<D: MaterialDeserializer, P: MaterialProcessor>(
 	loader: &GenericMaterialLoader<D, P>,
 	load_context: &mut LoadContext<'_>,
 	sub_material: ParsedGenericMaterial<D::Value>,
-) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialError> {
+) -> Result<ParsedGenericMaterial<D::Value>, GenericMaterialLoadError> {
 	// We do a queue-based solution because async functions can't recurse
 	let mut application_queue: Vec<ParsedGenericMaterial<D::Value>> = Vec::new();
 
@@ -41,7 +44,7 @@ pub(super) async fn apply_inheritance<D: MaterialDeserializer, P: MaterialProces
 		application_queue.push(
 			read_path(loader, load_context, path)
 				.await
-				.map_err(|err| GenericMaterialError::InSuperMaterial(inherits.clone(), Box::new(err)))?,
+				.map_err(|err| GenericMaterialLoadError::InSuperMaterial(inherits.clone(), Box::new(err)))?,
 		);
 	}
 

@@ -3,6 +3,9 @@ pub mod inheritance;
 pub mod processor;
 pub mod simple;
 
+mod error;
+pub use error::*;
+
 use std::any::TypeId;
 use std::ffi::OsStr;
 use std::str;
@@ -28,6 +31,7 @@ use crate::{prelude::*, value::GenericValue, GenericMaterialShorthands};
 use crate::{generic_material::ErasedMaterial, generic_material::ReflectGenericMaterial};
 use serde::de::DeserializeSeed;
 
+/// The main [`GenericMaterial`] asset loader. Deserializes the file using `D`, and processes the parsed data into concrete types with the help of `P`.
 pub struct GenericMaterialLoader<D: MaterialDeserializer, P: MaterialProcessor> {
 	pub type_registry: AppTypeRegistry,
 	pub shorthands: GenericMaterialShorthands,
@@ -57,7 +61,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 	type Settings = ImageLoaderSettings;
 	#[cfg(not(feature = "bevy_image"))]
 	type Settings = ();
-	type Error = GenericMaterialError;
+	type Error = GenericMaterialLoadError;
 
 	fn load(
 		&self,
@@ -76,11 +80,13 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 			let parsed: ParsedGenericMaterial<D::Value> = self
 				.deserializer
 				.deserialize(&input)
-				.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
+				.map_err(|err| GenericMaterialLoadError::Deserialize(Box::new(err)))?;
 
 			let parsed = apply_inheritance(self, load_context, parsed).await?;
 
 			assert!(parsed.inherits.is_none());
+
+			// MATERIAL
 
 			#[cfg(feature = "bevy_pbr")]
 			let mat = {
@@ -88,6 +94,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 
 				let type_registry = self.type_registry.read();
 
+				// Find candidates for the type we want to make.
 				let mut registration_candidates = Vec::new();
 
 				let shorthands = self.shorthands.values.read().unwrap();
@@ -103,10 +110,11 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 					}
 				}
 
+				// Only pass if there's exactly one.
 				if registration_candidates.is_empty() {
-					return Err(GenericMaterialError::MaterialTypeNotFound(type_name.to_string()));
+					return Err(GenericMaterialLoadError::MaterialTypeNotFound(type_name.to_string()));
 				} else if registration_candidates.len() > 1 {
-					return Err(GenericMaterialError::TooManyTypeCandidates(
+					return Err(GenericMaterialLoadError::TooManyTypeCandidates(
 						type_name.to_string(),
 						registration_candidates
 							.into_iter()
@@ -116,6 +124,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 				}
 				let registration = registration_candidates[0];
 
+				// Create the material's default value.
 				let Some(mut mat) = type_registry
 					.get_type_data::<ReflectGenericMaterial>(registration.type_id())
 					.map(ReflectGenericMaterial::default)
@@ -123,6 +132,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 					panic!("{} isn't a registered generic material", registration.type_info().type_path());
 				};
 
+				// Deserialize and process the parsed values into the struct.
 				if let Some(material) = parsed.material {
 					let mut processor = MaterialDeserializerProcessor {
 						ctx: MaterialProcessorContext {
@@ -134,7 +144,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 
 					let data = TypedReflectDeserializer::with_processor(registration, &type_registry, &mut processor)
 						.deserialize(material)
-						.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
+						.map_err(|err| GenericMaterialLoadError::Deserialize(Box::new(err)))?;
 
 					mat.try_apply(data.as_ref())?;
 				}
@@ -142,7 +152,9 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 				mat
 			};
 
-			let mut properties: HashMap<String, Box<dyn Reflect>> = HashMap::default();
+			// PROPERTIES
+
+			let mut properties: HashMap<String, Box<dyn Reflect>> = default();
 
 			if let Some(parsed_properties) = parsed.properties {
 				let type_registry = self.type_registry.read();
@@ -159,21 +171,21 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 
 				for (key, value) in parsed_properties {
 					let Some(type_id) = property_registry.get(&key).copied() else {
-						return Err(GenericMaterialError::PropertyNotRegistered(key));
+						return Err(GenericMaterialLoadError::PropertyNotRegistered(key));
 					};
 					let Some(registration) = type_registry.get(type_id) else {
-						return Err(GenericMaterialError::PropertyTypeNotRegistered(key));
+						return Err(GenericMaterialLoadError::PropertyTypeNotRegistered(key));
 					};
 					let Some(from_reflect) = registration.data::<ReflectFromReflect>() else {
-						return Err(GenericMaterialError::NoFromReflect(registration.type_info().type_path()));
+						return Err(GenericMaterialLoadError::NoFromReflect(registration.type_info().type_path()));
 					};
 
 					let partial_data = TypedReflectDeserializer::with_processor(registration, &type_registry, &mut processor)
 						.deserialize(value)
-						.map_err(|err| GenericMaterialError::Deserialize(Box::new(err)))?;
+						.map_err(|err| GenericMaterialLoadError::Deserialize(Box::new(err)))?;
 
 					let Some(data) = from_reflect.from_reflect(&*partial_data) else {
-						return Err(GenericMaterialError::FullReflect {
+						return Err(GenericMaterialLoadError::FullReflect {
 							ty: partial_data.get_represented_type_info(),
 						});
 					};
@@ -195,6 +207,8 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 	}
 }
 
+/// An in-between step in deserialization.
+/// Stores a structured version of the data actually in the material file itself to be fully deserialized into Rust data.
 #[derive(Deserialize)]
 struct ParsedGenericMaterial<Value: GenericValue> {
 	inherits: Option<String>,
@@ -206,9 +220,15 @@ struct ParsedGenericMaterial<Value: GenericValue> {
 	properties: Option<HashMap<String, Value>>,
 }
 
+/// Reflected function that loads an asset. Used for asset loading from paths in generic materials.
 #[derive(Debug, Clone)]
-pub struct ReflectGenericMaterialLoad {
-	pub load: fn(&mut MaterialProcessorContext, AssetPath<'static>) -> Box<dyn PartialReflect>,
+pub struct ReflectGenericMaterialSubAsset {
+	load: fn(&mut MaterialProcessorContext, AssetPath<'static>) -> Box<dyn PartialReflect>,
+}
+impl ReflectGenericMaterialSubAsset {
+	pub fn load(&self, ctx: &mut MaterialProcessorContext, path: AssetPath<'static>) -> Box<dyn PartialReflect> {
+		(self.load)(ctx, path)
+	}
 }
 
 pub trait ReflectGenericMaterialLoadAppExt {
@@ -221,43 +241,47 @@ pub trait ReflectGenericMaterialLoadAppExt {
 	/// This will cause an error if the asset loader doesn't use image settings.
 	fn register_generic_material_sub_asset_image_settings_passthrough<A: Asset>(&mut self) -> &mut Self;
 }
+
+/// Reduces code duplication for the functions below.
+fn register_generic_material_sub_asset_internal<A: Asset>(app: &mut App, loader: ReflectGenericMaterialSubAsset) -> &mut App {
+	let mut type_registry = app.world().resource::<AppTypeRegistry>().write();
+	let registration = match type_registry.get_mut(TypeId::of::<Handle<A>>()) {
+		Some(x) => x,
+		None => panic!("Asset handle not registered: {}", std::any::type_name::<A>()),
+	};
+
+	registration.insert(loader);
+
+	drop(type_registry);
+
+	app
+}
+
 impl ReflectGenericMaterialLoadAppExt for App {
-	// Lot of duplicated code here
 	#[track_caller]
 	fn register_generic_material_sub_asset<A: Asset>(&mut self) -> &mut Self {
-		let mut type_registry = self.main().world().resource::<AppTypeRegistry>().write();
-		let registration = match type_registry.get_mut(TypeId::of::<Handle<A>>()) {
-			Some(x) => x,
-			None => panic!("Asset handle not registered: {}", std::any::type_name::<A>()),
-		};
-
-		registration.insert(ReflectGenericMaterialLoad {
-			load: |processor, path| Box::new(processor.load_context.load::<A>(path)),
-		});
-
-		drop(type_registry);
-
-		self
+		register_generic_material_sub_asset_internal::<A>(
+			self,
+			ReflectGenericMaterialSubAsset {
+				load: |processor, path| Box::new(processor.load_context.load::<A>(path)),
+			},
+		)
 	}
 
 	#[track_caller]
 	fn register_generic_material_sub_asset_image_settings_passthrough<A: Asset>(&mut self) -> &mut Self {
-		let mut type_registry = self.main().world().resource::<AppTypeRegistry>().write();
-		let registration = match type_registry.get_mut(TypeId::of::<Handle<A>>()) {
-			Some(x) => x,
-			None => panic!("Asset handle not registered: {}", std::any::type_name::<A>()),
-		};
-
-		registration.insert(ReflectGenericMaterialLoad {
-			load: |processor, path| Box::new(processor.load_with_image_settings::<A>(path)),
-		});
-
-		drop(type_registry);
-
-		self
+		register_generic_material_sub_asset_internal::<A>(
+			self,
+			ReflectGenericMaterialSubAsset {
+				load: |processor, path| Box::new(processor.load_with_image_settings::<A>(path)),
+			},
+		)
 	}
 }
 
+// TODO: This ignores meta files. Is there some way to check if a meta file is being used?
+
+/// Returns a function for setting an asset loader's settings to the supplied [`ImageLoaderSettings`].
 #[cfg(feature = "bevy_image")]
 pub fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut ImageLoaderSettings) {
 	let settings = settings.clone();

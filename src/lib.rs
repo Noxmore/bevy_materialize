@@ -29,7 +29,9 @@ pub struct MaterializePlugin<D: MaterialDeserializer, P: MaterialProcessor> {
 	pub deserializer: Arc<D>,
 	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
 	pub simple_loader: Option<SimpleGenericMaterialLoader>,
+	/// Whether to add [`AnimationPlugin`](animation::AnimationPlugin), animating materials with the [`ANIMATION`](GenericMaterial::ANIMATION) property. (Default: `true`)
 	pub animated_materials: bool,
+	// Whether to replace special patterns in text, such as replacing `${name}` with the name of the material loading. (Default: `true`)
 	pub do_text_replacements: bool,
 	pub processor: P,
 }
@@ -83,13 +85,14 @@ impl<D: MaterialDeserializer, P: MaterialProcessor + Clone> Plugin for Materiali
 	}
 }
 impl<D: MaterialDeserializer> MaterializePlugin<D, AssetLoadingProcessor<()>> {
-	/// Creates a new [`MaterializePlugin`] with an asset loading processor.
+	/// Creates a new [`MaterializePlugin`] with an [`AssetLoadingProcessor`].
 	pub fn new(deserializer: D) -> Self {
 		Self::new_with_processor(deserializer, AssetLoadingProcessor(()))
 	}
 }
 
 impl<D: MaterialDeserializer, P: MaterialProcessor> MaterializePlugin<D, P> {
+	/// Use over [`MaterializePlugin::new`] if you don't want to use an [`AssetLoadingProcessor`].
 	pub fn new_with_processor(deserializer: D, processor: P) -> Self {
 		Self {
 			deserializer: Arc::new(deserializer),
@@ -116,7 +119,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> MaterializePlugin<D, P> {
 		}
 	}
 
-	/// Whether to enable builtin material animation. (Default: `true`)
+	/// Whether to add [`AnimationPlugin`](animation::AnimationPlugin), animating materials with the [`ANIMATION`](GenericMaterial::ANIMATION) property.
 	pub fn with_animated_materials(self, value: bool) -> Self {
 		Self {
 			animated_materials: value,

@@ -1,6 +1,6 @@
 #[cfg(feature = "bevy_image")]
 use super::set_image_loader_settings;
-use super::{relative_asset_path, ReflectGenericMaterialLoad};
+use super::{relative_asset_path, ReflectGenericMaterialSubAsset};
 use ::serde;
 use bevy::asset::AssetPath;
 #[cfg(feature = "bevy_image")]
@@ -77,12 +77,12 @@ impl<P: MaterialProcessor> MaterialProcessor for AssetLoadingProcessor<P> {
 		_registry: &TypeRegistry,
 		deserializer: D,
 	) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error> {
-		if let Some(loader) = registration.data::<ReflectGenericMaterialLoad>() {
+		if let Some(loader) = registration.data::<ReflectGenericMaterialSubAsset>() {
 			let path = String::deserialize(deserializer)?;
 
 			let path = relative_asset_path(ctx.load_context.asset_path(), &path).map_err(serde::de::Error::custom)?;
 
-			return Ok(Ok((loader.load)(ctx, path)));
+			return Ok(Ok(loader.load(ctx, path)));
 		}
 
 		Ok(Err(deserializer))

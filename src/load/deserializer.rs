@@ -1,12 +1,11 @@
 use bevy::prelude::*;
 use serde::de::DeserializeOwned;
-use serde::Deserializer;
 
 use super::*;
 
 /// Main trait for file format implementation of generic materials. See [`TomlMaterialDeserializer`] and [`JsonMaterialDeserializer`] for built-in/example implementations.
 pub trait MaterialDeserializer: Send + Sync + 'static {
-	type Value: GenericValue + DeserializeOwned + Deserializer<'static, Error: Send + Sync>;
+	type Value: GenericValue + DeserializeOwned;
 	type Error: serde::de::Error + Send + Sync;
 	/// The asset loader's file extensions.
 	const EXTENSIONS: &[&str];

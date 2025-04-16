@@ -1,7 +1,5 @@
 use std::{
 	any::TypeId,
-	error::Error,
-	io,
 	marker::PhantomData,
 	sync::{Arc, RwLock},
 };
@@ -9,7 +7,7 @@ use std::{
 use bevy::{
 	platform::collections::HashMap,
 	prelude::*,
-	reflect::{ApplyError, GetTypeRegistration, TypeInfo, TypeRegistration},
+	reflect::{GetTypeRegistration, TypeInfo, TypeRegistration},
 };
 
 #[cfg(feature = "bevy_pbr")]
@@ -54,7 +52,7 @@ impl GenericMaterial3d {
 #[reflect(Component)]
 pub struct GenericMaterialApplied;
 
-/// Material asset containing a type-erased material handle, and generic user-defined properties.
+/// Material asset containing a type-erased material handle, and arbitrary user-defined properties.
 #[derive(Asset, TypePath, Debug)]
 #[cfg_attr(not(feature = "bevy_pbr"), derive(Default))]
 pub struct GenericMaterial {
@@ -95,6 +93,7 @@ impl GenericMaterial {
 	}
 }
 
+/// Errors that may occur when retrieving a property from a [`GenericMaterial`].
 #[derive(Error, Debug, Clone)]
 pub enum GetPropertyError {
 	#[error("Property not found")]
@@ -170,7 +169,7 @@ impl MaterialPropertyAppExt for App {
 	}
 }
 
-/// Version of [`ReflectDefault`] that returns `Box<dyn ErasedMaterial>` instead of `Box<dyn Reflect>`.
+/// Stores a default value of a certain material that is cloned whenever a new copy of said material is needed to load a [`GenericMaterial`].
 #[cfg(feature = "bevy_pbr")]
 #[derive(Clone)]
 pub struct ReflectGenericMaterial {
@@ -189,9 +188,9 @@ pub struct GenericMaterialShorthands {
 	pub values: Arc<RwLock<HashMap<String, TypeRegistration>>>,
 }
 
+/// Type-erased [`Material`].
 #[cfg(feature = "bevy_pbr")]
 pub trait ErasedMaterial: Send + Sync + Reflect + Struct {
-	// TODO Can't use just `self` because i can't move out of trait objects.
 	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Box<dyn ErasedMaterialHandle>;
 	fn add_asset(&self, asset_server: &AssetServer) -> Box<dyn ErasedMaterialHandle>;
 	fn clone_erased(&self) -> Box<dyn ErasedMaterial>;
@@ -223,6 +222,7 @@ impl Clone for Box<dyn ErasedMaterial> {
 	}
 }
 
+/// Type-erased [`Material`] [`Handle`].
 #[cfg(feature = "bevy_pbr")]
 pub trait ErasedMaterialHandle: Send + Sync + fmt::Debug + Any {
 	fn clone_erased(&self) -> Box<dyn ErasedMaterialHandle>;
@@ -322,40 +322,4 @@ impl dyn ErasedMaterialHandle {
 			}),
 		);
 	}
-}
-
-#[derive(Error, Debug)]
-pub enum GenericMaterialError {
-	#[error("{0}")]
-	Io(#[from] io::Error),
-	#[error("Deserialize error: {0}")]
-	Deserialize(Box<dyn Error + Send + Sync>),
-	#[error("No registered material found for type {0}")]
-	MaterialTypeNotFound(String),
-	#[error("Too many type candidates found for `{0}`: {1:?}")]
-	TooManyTypeCandidates(String, Vec<String>),
-	#[error("field {field} is of type {expected}, but {found} was provided")]
-	WrongType { expected: String, found: String, field: String },
-	#[error("{0}")]
-	Apply(#[from] ApplyError),
-	#[error("Enums defined with structures must have exactly one variant (e.g. `alpha_mode = {{ Mask = 0.5 }}`)")]
-	WrongNumberEnumElements,
-	#[error("No property by the name of {0}")]
-	NoProperty(String),
-	#[error("Type not registered: {0}")]
-	TypeNotRegistered(&'static str),
-	#[error("Property {0} found, but was not registered to any type. Use `App::register_material_property` to register it")]
-	PropertyNotRegistered(String),
-	#[error("Property {0} found and was registered, but the type it points to isn't registered in the type registry")]
-	PropertyTypeNotRegistered(String),
-	#[error("Could not get `ReflectFromReflect` for type {0}")]
-	NoFromReflect(&'static str),
-	#[error("Could not fully reflect property of type {:?}", ty.map(TypeInfo::type_path))]
-	FullReflect { ty: Option<&'static TypeInfo> },
-
-	#[error("in field {0} - {1}")]
-	InField(String, Box<Self>),
-
-	#[error("in super-material {0} - {1}")]
-	InSuperMaterial(String, Box<Self>),
 }
