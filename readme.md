@@ -1,4 +1,8 @@
 # bevy_materialize
+
+[![crates.io](https://img.shields.io/crates/v/bevy_materialize)](https://crates.io/crates/bevy_materialize)
+[![docs.rs](https://docs.rs/bevy_materialize/badge.svg)](https://docs.rs/bevy_materialize)
+
 Crate for loading and applying type-erased materials in Bevy.
 
 Built-in supported formats are `json`, and `toml`, but you can easily add more.
