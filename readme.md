@@ -197,8 +197,8 @@ This allows you to modify data as it's being deserialized. For example, this sys
 
 It's used much like Rust's iterator API, each processor having a child processor that is stored via generic. If you want to make your own, check out `AssetLoadingProcessor` for a simple example of an implementation, then use it with your `MaterializePlugin`.
 ```rust ignore
-pub struct MyProcessor<P: MaterialSubProcessor>(pub P);
-impl<P: MaterialSubProcessor> MaterialSubProcessor for MyProcessor<P> {
+pub struct MyProcessor<P: MaterialProcessor>(pub P);
+impl<P: MaterialProcessor> MaterialProcessor for MyProcessor<P> {
 	// ...
 }
 
