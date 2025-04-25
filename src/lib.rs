@@ -18,10 +18,10 @@ use bevy::prelude::*;
 #[cfg(feature = "bevy_pbr")]
 use generic_material::GenericMaterialApplied;
 use load::{
+	GenericMaterialLoader, ReflectGenericMaterialLoadAppExt,
 	deserializer::MaterialDeserializer,
 	processor::{AssetLoadingProcessor, MaterialProcessor},
 	simple::SimpleGenericMaterialLoader,
-	GenericMaterialLoader, ReflectGenericMaterialLoadAppExt,
 };
 use prelude::*;
 

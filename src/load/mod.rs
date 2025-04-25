@@ -25,7 +25,7 @@ use processor::{MaterialDeserializerProcessor, MaterialProcessor, MaterialProces
 use serde::Deserialize;
 
 use crate::generic_material::MaterialPropertyRegistry;
-use crate::{prelude::*, value::GenericValue, GenericMaterialShorthands};
+use crate::{GenericMaterialShorthands, prelude::*, value::GenericValue};
 
 #[cfg(feature = "bevy_pbr")]
 use crate::{generic_material::ErasedMaterial, generic_material::ReflectGenericMaterial};
@@ -283,7 +283,7 @@ impl ReflectGenericMaterialLoadAppExt for App {
 
 /// Returns a function for setting an asset loader's settings to the supplied [`ImageLoaderSettings`].
 #[cfg(feature = "bevy_image")]
-pub fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut ImageLoaderSettings) {
+pub fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut ImageLoaderSettings) + 'static {
 	let settings = settings.clone();
 	move |s| *s = settings.clone()
 }

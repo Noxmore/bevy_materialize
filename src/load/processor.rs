@@ -1,6 +1,6 @@
 #[cfg(feature = "bevy_image")]
 use super::set_image_loader_settings;
-use super::{relative_asset_path, ReflectGenericMaterialSubAsset};
+use super::{ReflectGenericMaterialSubAsset, relative_asset_path};
 use ::serde;
 use bevy::asset::AssetPath;
 #[cfg(feature = "bevy_image")]
