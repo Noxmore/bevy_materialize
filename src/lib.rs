@@ -78,11 +78,11 @@ impl<D: MaterialDeserializer, P: MaterialProcessor + Clone> Plugin for Materiali
 		app
 			.register_material_property(GenericMaterial::VISIBILITY)
 			.register_generic_material::<StandardMaterial>()
-			.add_systems(PreUpdate, reload_generic_materials)
-			.add_systems(PostUpdate, (
+			.add_systems(PreUpdate, (
+				reload_generic_materials,
+				visibility_material_property, // Must be before `insert_generic_materials`
 				insert_generic_materials,
-				visibility_material_property.before(insert_generic_materials),
-			))
+			).chain())
 		;
 	}
 }
