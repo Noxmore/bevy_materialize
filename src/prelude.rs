@@ -6,6 +6,7 @@ pub use crate::load::deserializer::TomlMaterialDeserializer;
 pub use crate::{MaterializeAppExt, generic_material::ReflectGenericMaterial};
 pub use crate::{
 	MaterializePlugin,
-	generic_material::{GenericMaterial, GenericMaterial3d, MaterialProperty, MaterialPropertyAppExt},
-	load::{ReflectGenericMaterialLoadAppExt, deserializer::MaterialDeserializer},
+	generic_material::{GenericMaterial, GenericMaterial3d},
+	load::{asset::GenericMaterialSubAssetAppExt, deserializer::MaterialDeserializer},
+	material_property::{MaterialProperty, MaterialPropertyAppExt},
 };

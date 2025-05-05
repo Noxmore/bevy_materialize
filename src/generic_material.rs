@@ -1,24 +1,14 @@
-use std::{
-	any::TypeId,
-	marker::PhantomData,
-	sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
-use bevy::{
-	platform::collections::HashMap,
-	prelude::*,
-	reflect::{GetTypeRegistration, TypeInfo, TypeRegistration},
-};
+use bevy::{platform::collections::HashMap, prelude::*, reflect::TypeRegistration};
 
 #[cfg(feature = "bevy_pbr")]
-use bevy::{
-	asset::{LoadContext, UntypedAssetId},
-	ecs::{component::HookContext, world::DeferredWorld},
-	reflect::{ReflectMut, Typed},
-};
+use bevy::ecs::{component::HookContext, world::DeferredWorld};
+
 #[cfg(feature = "bevy_pbr")]
-use std::{any::Any, fmt};
-use thiserror::Error;
+use crate::erased_material::{ErasedMaterial, ErasedMaterialHandle};
+
+use crate::{material_property::GetPropertyError, prelude::MaterialProperty};
 
 /// Generic version of [`MeshMaterial3d`]. Stores a handle to a [`GenericMaterial`].
 ///
@@ -93,82 +83,6 @@ impl GenericMaterial {
 	}
 }
 
-/// Errors that may occur when retrieving a property from a [`GenericMaterial`].
-#[derive(Error, Debug, Clone)]
-pub enum GetPropertyError {
-	#[error("Property not found")]
-	NotFound,
-	#[error("Property found doesn't have the required type. Type found: {:?}", found.map(TypeInfo::type_path))]
-	WrongType { found: Option<&'static TypeInfo> },
-}
-
-/// Maps property names to the types they represent.
-#[derive(Resource, Debug, Clone, Default)]
-pub struct MaterialPropertyRegistry {
-	pub inner: Arc<RwLock<HashMap<String, TypeId>>>,
-}
-
-/// Helper type containing both a type and key for material properties.
-///
-/// # Examples
-/// ```
-/// # use bevy::prelude::*;
-/// # use bevy_materialize::prelude::*;
-///
-/// pub trait MyMaterialProperties {
-///     const MY_PROPERTY: MaterialProperty<f32> = MaterialProperty::new("my_property");
-/// }
-/// impl MyMaterialProperties for GenericMaterial {}
-///
-/// fn example_main() {
-///     App::new()
-///         .register_material_property(GenericMaterial::MY_PROPERTY)
-///         // ...
-/// # ;
-/// }
-/// ```
-#[derive(Debug, Clone, Copy)]
-pub struct MaterialProperty<T> {
-	pub key: &'static str,
-	_marker: PhantomData<T>,
-}
-impl<T> MaterialProperty<T> {
-	pub const fn new(key: &'static str) -> Self {
-		Self { key, _marker: PhantomData }
-	}
-}
-
-pub trait MaterialPropertyAppExt {
-	/// Registers material properties with the specified key to try to deserialize into `T`. Overwrites registration if one already exists for `key`.
-	///
-	/// Also registers the type if it hasn't been already.
-	fn register_material_property_manual<T: Reflect + GetTypeRegistration>(&mut self, key: impl Into<String>) -> &mut Self;
-
-	/// Uses the [`MaterialProperty`] helper type to register a material property. Overwrites registration if one already exists for `key`.
-	///
-	/// Also registers the type if it hasn't been already.
-	fn register_material_property<T: Reflect + GetTypeRegistration>(&mut self, property: MaterialProperty<T>) -> &mut Self;
-}
-impl MaterialPropertyAppExt for App {
-	fn register_material_property_manual<T: Reflect + GetTypeRegistration>(&mut self, key: impl Into<String>) -> &mut Self {
-		let mut type_registry = self.world().resource::<AppTypeRegistry>().write();
-		if type_registry.get(TypeId::of::<T>()).is_none() {
-			type_registry.register::<T>();
-		}
-		drop(type_registry);
-
-		let mut property_map = self.world().resource::<MaterialPropertyRegistry>().inner.write().unwrap();
-		property_map.insert(key.into(), TypeId::of::<T>());
-		drop(property_map);
-
-		self
-	}
-
-	fn register_material_property<T: Reflect + GetTypeRegistration>(&mut self, property: MaterialProperty<T>) -> &mut Self {
-		self.register_material_property_manual::<T>(property.key)
-	}
-}
-
 /// Stores a default value of a certain material that is cloned whenever a new copy of said material is needed to load a [`GenericMaterial`].
 #[cfg(feature = "bevy_pbr")]
 #[derive(Clone)]
@@ -186,140 +100,4 @@ impl ReflectGenericMaterial {
 #[derive(Resource, Debug, Clone, Default)]
 pub struct GenericMaterialShorthands {
 	pub values: Arc<RwLock<HashMap<String, TypeRegistration>>>,
-}
-
-/// Type-erased [`Material`].
-#[cfg(feature = "bevy_pbr")]
-pub trait ErasedMaterial: Send + Sync + Reflect + Struct {
-	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Box<dyn ErasedMaterialHandle>;
-	fn add_asset(&self, asset_server: &AssetServer) -> Box<dyn ErasedMaterialHandle>;
-	fn clone_erased(&self) -> Box<dyn ErasedMaterial>;
-}
-#[cfg(feature = "bevy_pbr")]
-impl<M: Material + Reflect + Struct + Clone> ErasedMaterial for M {
-	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> Box<dyn ErasedMaterialHandle> {
-		load_context.add_labeled_asset(label, self.clone()).into()
-	}
-
-	fn add_asset(&self, asset_server: &AssetServer) -> Box<dyn ErasedMaterialHandle> {
-		asset_server.add(self.clone()).into()
-	}
-
-	fn clone_erased(&self) -> Box<dyn ErasedMaterial> {
-		Box::new(self.clone())
-	}
-}
-#[cfg(feature = "bevy_pbr")]
-impl<M: Material + Reflect + Struct + Clone> From<M> for Box<dyn ErasedMaterial> {
-	fn from(value: M) -> Self {
-		Box::new(value)
-	}
-}
-#[cfg(feature = "bevy_pbr")]
-impl Clone for Box<dyn ErasedMaterial> {
-	fn clone(&self) -> Self {
-		self.clone_erased()
-	}
-}
-
-/// Type-erased [`Material`] [`Handle`].
-#[cfg(feature = "bevy_pbr")]
-pub trait ErasedMaterialHandle: Send + Sync + fmt::Debug + Any {
-	fn clone_erased(&self) -> Box<dyn ErasedMaterialHandle>;
-	fn insert(&self, entity: EntityWorldMut);
-	fn remove(&self, entity: EntityWorldMut);
-	fn to_untyped_handle(&self) -> UntypedHandle;
-	fn id(&self) -> UntypedAssetId;
-
-	#[allow(clippy::type_complexity)]
-	fn modify_with_commands(&self, commands: &mut Commands, modifier: Box<dyn FnOnce(Option<&mut dyn Reflect>) + Send + Sync>);
-}
-#[cfg(feature = "bevy_pbr")]
-impl<M: Material + Reflect> ErasedMaterialHandle for Handle<M> {
-	fn clone_erased(&self) -> Box<dyn ErasedMaterialHandle> {
-		self.clone().into()
-	}
-
-	fn insert(&self, mut entity: EntityWorldMut) {
-		entity.insert(MeshMaterial3d(self.clone()));
-	}
-
-	fn remove(&self, mut entity: EntityWorldMut) {
-		entity.remove::<MeshMaterial3d<M>>();
-	}
-
-	fn to_untyped_handle(&self) -> UntypedHandle {
-		self.clone().untyped()
-	}
-
-	fn id(&self) -> UntypedAssetId {
-		self.id().untyped()
-	}
-
-	fn modify_with_commands(&self, commands: &mut Commands, modifier: Box<dyn FnOnce(Option<&mut dyn Reflect>) + Send + Sync>) {
-		let handle = self.clone();
-
-		commands.queue(move |world: &mut World| {
-			let mut assets = world.resource_mut::<Assets<M>>();
-			let asset = assets.get_mut(handle.id());
-			let asset: Option<&mut dyn Reflect> = match asset {
-				Some(m) => Some(m),
-				None => None,
-			};
-
-			modifier(asset);
-		});
-	}
-}
-#[cfg(feature = "bevy_pbr")]
-impl<M: Material + Reflect> From<Handle<M>> for Box<dyn ErasedMaterialHandle> {
-	fn from(value: Handle<M>) -> Self {
-		Box::new(value)
-	}
-}
-#[cfg(feature = "bevy_pbr")]
-impl Clone for Box<dyn ErasedMaterialHandle> {
-	fn clone(&self) -> Self {
-		self.clone_erased()
-	}
-}
-
-#[cfg(feature = "bevy_pbr")]
-impl dyn ErasedMaterialHandle {
-	/// Attempts to modify a single field in the material. Writes an error out if something fails.
-	pub fn modify_field_with_commands<T: Reflect + Typed + FromReflect + GetTypeRegistration>(
-		&self,
-		commands: &mut Commands,
-		field_name: String,
-		value: T,
-	) {
-		self.modify_with_commands(
-			commands,
-			Box::new(move |material| {
-				let Some(material) = material else { return };
-				let ReflectMut::Struct(s) = material.reflect_mut() else { return };
-
-				let Some(field) = s.field_mut(&field_name) else {
-					error!(
-						"Tried to animate field {field_name} of {}, but said field doesn't exist!",
-						s.reflect_short_type_path()
-					);
-					return;
-				};
-
-				let apply_result = if field.represents::<Option<T>>() {
-					field.try_apply(&Some(value))
-				} else {
-					field.try_apply(&value)
-				};
-
-				if let Err(err) = apply_result {
-					error!(
-						"Tried to animate field {field_name} of {}, but failed to apply: {err}",
-						s.reflect_short_type_path()
-					);
-				}
-			}),
-		);
-	}
 }

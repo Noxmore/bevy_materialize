@@ -1,18 +1,16 @@
 #[cfg(feature = "bevy_image")]
-use super::set_image_loader_settings;
-use super::{ReflectGenericMaterialSubAsset, relative_asset_path};
+use super::asset::set_image_loader_settings;
 use ::serde;
 use bevy::asset::AssetPath;
 #[cfg(feature = "bevy_image")]
 use bevy::image::ImageLoaderSettings;
 use bevy::reflect::{serde::*, *};
 use bevy::{asset::LoadContext, prelude::*};
-use serde::Deserialize;
 
 /// API wrapping Bevy's [`ReflectDeserializerProcessor`](https://docs.rs/bevy/latest/bevy/reflect/serde/trait.ReflectDeserializerProcessor.html).
 /// This allows you to modify data as it's being deserialized. For example, this system is used for loading assets, treating strings as paths.
 ///
-/// It's used much like Rust's iterator API, each processor having a child processor that is stored via generic. If you want to make your own, check out [`AssetLoadingProcessor`] for a simple example of an implementation.
+/// It's used much like Rust's iterator API, each processor having a child processor that is stored via generic. If you want to make your own, check out [`AssetLoadingProcessor`](crate::AssetLoadingProcessor) for a simple example of an implementation.
 pub trait MaterialProcessor: Clone + Send + Sync + 'static {
 	type Child: MaterialProcessor;
 
@@ -57,34 +55,6 @@ impl MaterialProcessor for () {
 		_registry: &TypeRegistry,
 		deserializer: D,
 	) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error> {
-		Ok(Err(deserializer))
-	}
-}
-
-/// Material processor that loads assets from paths.
-#[derive(Clone)]
-pub struct AssetLoadingProcessor<P: MaterialProcessor>(pub P);
-impl<P: MaterialProcessor> MaterialProcessor for AssetLoadingProcessor<P> {
-	type Child = P;
-	fn child(&self) -> Option<&Self::Child> {
-		Some(&self.0)
-	}
-
-	fn try_deserialize<'de, D: serde::Deserializer<'de>>(
-		&self,
-		ctx: &mut MaterialProcessorContext,
-		registration: &TypeRegistration,
-		_registry: &TypeRegistry,
-		deserializer: D,
-	) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error> {
-		if let Some(loader) = registration.data::<ReflectGenericMaterialSubAsset>() {
-			let path = String::deserialize(deserializer)?;
-
-			let path = relative_asset_path(ctx.load_context.asset_path(), &path).map_err(serde::de::Error::custom)?;
-
-			return Ok(Ok(loader.load(ctx, path)));
-		}
-
 		Ok(Err(deserializer))
 	}
 }

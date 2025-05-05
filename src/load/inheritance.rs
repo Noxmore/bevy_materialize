@@ -5,6 +5,7 @@ use bevy::prelude::*;
 
 use crate::load::ParsedGenericMaterial;
 
+use super::asset::relative_asset_path;
 use super::deserializer::MaterialDeserializer;
 use super::*;
 

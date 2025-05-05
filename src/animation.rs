@@ -6,7 +6,7 @@ use bevy::{
 };
 
 use crate::{
-	generic_material::{GetPropertyError, MaterialPropertyAppExt},
+	material_property::{GetPropertyError, MaterialPropertyAppExt},
 	prelude::*,
 };
 

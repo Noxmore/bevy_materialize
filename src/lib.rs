@@ -1,8 +1,11 @@
 #![doc = include_str!("../readme.md")]
 
 pub mod animation;
+#[cfg(feature = "bevy_pbr")]
+pub mod erased_material;
 pub mod generic_material;
 pub mod load;
+pub mod material_property;
 pub mod prelude;
 pub mod value;
 
@@ -12,15 +15,14 @@ use std::sync::Arc;
 
 #[cfg(feature = "bevy_pbr")]
 use bevy::reflect::GetTypeRegistration;
-use generic_material::{GenericMaterialShorthands, MaterialPropertyRegistry};
+use generic_material::GenericMaterialShorthands;
+use material_property::MaterialPropertyRegistry;
 
 use bevy::prelude::*;
 #[cfg(feature = "bevy_pbr")]
 use generic_material::GenericMaterialApplied;
 use load::{
-	GenericMaterialLoader, ReflectGenericMaterialLoadAppExt,
-	deserializer::MaterialDeserializer,
-	processor::{AssetLoadingProcessor, MaterialProcessor},
+	GenericMaterialLoader, asset::AssetLoadingProcessor, deserializer::MaterialDeserializer, processor::MaterialProcessor,
 	simple::SimpleGenericMaterialLoader,
 };
 use prelude::*;
