@@ -1,6 +1,7 @@
 #![doc = include_str!("../readme.md")]
 
 pub mod animation;
+pub mod color_space_fix;
 #[cfg(feature = "bevy_pbr")]
 pub mod erased_material;
 pub mod generic_material;
@@ -15,6 +16,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "bevy_pbr")]
 use bevy::reflect::GetTypeRegistration;
+use color_space_fix::ColorSpaceFixPlugin;
 use generic_material::GenericMaterialShorthands;
 use material_property::MaterialPropertyRegistry;
 
@@ -35,6 +37,8 @@ pub struct MaterializePlugin<D: MaterialDeserializer, P: MaterialProcessor> {
 	pub animated_materials: bool,
 	// Whether to replace special patterns in text, such as replacing `${name}` with the name of the material loading. (Default: `true`)
 	pub do_text_replacements: bool,
+	/// Whether to automatically set sRGB images in places where they aren't supposed to be to linear.
+	pub standard_material_color_space_fix: bool,
 	pub processor: P,
 }
 impl<D: MaterialDeserializer, P: MaterialProcessor + Clone> Plugin for MaterializePlugin<D, P> {
@@ -70,6 +74,10 @@ impl<D: MaterialDeserializer, P: MaterialProcessor + Clone> Plugin for Materiali
 			app.add_plugins(animation::AnimationPlugin);
 		}
 
+		if self.standard_material_color_space_fix {
+			app.add_plugins(ColorSpaceFixPlugin);
+		}
+
 		#[cfg(feature = "bevy_image")]
 		app.register_generic_material_sub_asset::<Image>();
 
@@ -101,6 +109,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> MaterializePlugin<D, P> {
 			simple_loader: Some(default()),
 			animated_materials: true,
 			do_text_replacements: true,
+			standard_material_color_space_fix: true,
 			processor,
 		}
 	}
@@ -129,6 +138,14 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> MaterializePlugin<D, P> {
 		}
 	}
 
+	/// Whether to automatically set sRGB images in places where they aren't supposed to be to linear.
+	pub fn with_standard_material_color_space_fix(self, value: bool) -> Self {
+		Self {
+			standard_material_color_space_fix: value,
+			..self
+		}
+	}
+
 	/// Adds a new processor to the processor stack. The function specified takes in the old processor and produces a new one.
 	///
 	/// Zero-sized processors are usually tuples, meaning you can just put their type name (e.g. `.with_processor(MyProcessor)`).
@@ -138,6 +155,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> MaterializePlugin<D, P> {
 			simple_loader: self.simple_loader,
 			animated_materials: self.animated_materials,
 			do_text_replacements: self.do_text_replacements,
+			standard_material_color_space_fix: self.standard_material_color_space_fix,
 			processor: f(self.processor),
 		}
 	}
