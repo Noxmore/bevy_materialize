@@ -36,7 +36,7 @@ impl Clone for Box<dyn ErasedMaterial> {
 	}
 }
 
-/// Type-erased [`Material`] [`Handle`].
+/// Type-erased [`Handle`]`<`[`Material`]`>`.
 pub trait ErasedMaterialHandle: Send + Sync + fmt::Debug + Any {
 	fn clone_erased(&self) -> Box<dyn ErasedMaterialHandle>;
 	fn insert(&self, entity: EntityWorldMut);
