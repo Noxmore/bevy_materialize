@@ -1,7 +1,5 @@
 use std::any::TypeId;
 
-#[cfg(feature = "bevy_image")]
-use bevy::image::ImageLoaderSettings;
 use bevy::{
 	asset::{AssetPath, ParseAssetPathError, io::AssetSourceId},
 	prelude::*,
@@ -55,46 +53,23 @@ pub trait GenericMaterialSubAssetAppExt {
 	///
 	/// Specifically, it allows loading of [`Handle<A>`] by simply providing a path relative to the material's directory.
 	fn register_generic_material_sub_asset<A: Asset>(&mut self) -> &mut Self;
-
-	/// Same as [`register_generic_material_sub_asset`](Self::register_generic_material_sub_asset), but passes image settings through.
-	/// This will cause an error if the asset loader doesn't use image settings.
-	fn register_generic_material_sub_asset_image_settings_passthrough<A: Asset>(&mut self) -> &mut Self;
 }
-
-/// Reduces code duplication for the functions below.
-fn register_generic_material_sub_asset_internal<A: Asset>(app: &mut App, loader: ReflectGenericMaterialSubAsset) -> &mut App {
-	let mut type_registry = app.world().resource::<AppTypeRegistry>().write();
-	let registration = match type_registry.get_mut(TypeId::of::<Handle<A>>()) {
-		Some(x) => x,
-		None => panic!("Asset handle not registered: {}", std::any::type_name::<A>()),
-	};
-
-	registration.insert(loader);
-
-	drop(type_registry);
-
-	app
-}
-
 impl GenericMaterialSubAssetAppExt for App {
 	#[track_caller]
 	fn register_generic_material_sub_asset<A: Asset>(&mut self) -> &mut Self {
-		register_generic_material_sub_asset_internal::<A>(
-			self,
-			ReflectGenericMaterialSubAsset {
-				load: |processor, path| Box::new(processor.load_context.load::<A>(path)),
-			},
-		)
-	}
+		let mut type_registry = self.world().resource::<AppTypeRegistry>().write();
+		let registration = match type_registry.get_mut(TypeId::of::<Handle<A>>()) {
+			Some(x) => x,
+			None => panic!("Asset handle not registered: {}", std::any::type_name::<A>()),
+		};
 
-	#[track_caller]
-	fn register_generic_material_sub_asset_image_settings_passthrough<A: Asset>(&mut self) -> &mut Self {
-		register_generic_material_sub_asset_internal::<A>(
-			self,
-			ReflectGenericMaterialSubAsset {
-				load: |processor, path| Box::new(processor.load_with_image_settings::<A>(path)),
-			},
-		)
+		registration.insert(ReflectGenericMaterialSubAsset {
+			load: |processor, path| Box::new(processor.load_context.load::<A>(path)),
+		});
+
+		drop(type_registry);
+
+		self
 	}
 }
 
@@ -124,13 +99,4 @@ pub fn relative_asset_path(relative_to: &AssetPath<'static>, path: &str) -> Resu
 	} else {
 		parent.resolve(path)
 	}
-}
-
-// TODO: This ignores meta files. Is there some way to check if a meta file is being used?
-
-/// Returns a function for setting an asset loader's settings to the supplied [`ImageLoaderSettings`].
-#[cfg(feature = "bevy_image")]
-pub fn set_image_loader_settings(settings: &ImageLoaderSettings) -> impl Fn(&mut ImageLoaderSettings) + 'static {
-	let settings = settings.clone();
-	move |s| *s = settings.clone()
 }

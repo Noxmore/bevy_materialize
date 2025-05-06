@@ -55,7 +55,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor + Clone> Plugin for Materiali
 			.insert_resource(property_registry.clone())
 			.register_type::<GenericMaterial3d>()
 			.init_asset::<GenericMaterial>()
-			.register_generic_material_sub_asset_image_settings_passthrough::<GenericMaterial>()
+			.register_generic_material_sub_asset::<GenericMaterial>()
 			.register_asset_loader(GenericMaterialLoader {
 				type_registry,
 				shorthands,
@@ -71,7 +71,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor + Clone> Plugin for Materiali
 		}
 
 		#[cfg(feature = "bevy_image")]
-		app.register_generic_material_sub_asset_image_settings_passthrough::<Image>();
+		app.register_generic_material_sub_asset::<Image>();
 
 		#[cfg(feature = "bevy_pbr")]
 		#[rustfmt::skip]
