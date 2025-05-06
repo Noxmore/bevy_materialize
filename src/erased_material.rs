@@ -45,7 +45,9 @@ pub trait ErasedMaterialHandle: Send + Sync + fmt::Debug + Any {
 	fn id(&self) -> UntypedAssetId;
 
 	#[allow(clippy::type_complexity)]
-	fn modify_with_commands(&self, commands: &mut Commands, modifier: Box<dyn FnOnce(Option<&mut dyn Reflect>) + Send + Sync>);
+	fn asset_scope_mut(&self, world: &mut World, f: Box<dyn FnOnce(&mut World, Option<&mut dyn Reflect>) + Send + Sync>);
+	#[allow(clippy::type_complexity)]
+	fn asset_scope(&self, world: &mut World, f: Box<dyn FnOnce(&mut World, Option<&dyn Reflect>) + Send + Sync>);
 }
 impl<M: Material + Reflect> ErasedMaterialHandle for Handle<M> {
 	fn clone_erased(&self) -> Box<dyn ErasedMaterialHandle> {
@@ -68,18 +70,27 @@ impl<M: Material + Reflect> ErasedMaterialHandle for Handle<M> {
 		self.id().untyped()
 	}
 
-	fn modify_with_commands(&self, commands: &mut Commands, modifier: Box<dyn FnOnce(Option<&mut dyn Reflect>) + Send + Sync>) {
-		let handle = self.clone();
-
-		commands.queue(move |world: &mut World| {
-			let mut assets = world.resource_mut::<Assets<M>>();
-			let asset = assets.get_mut(handle.id());
+	fn asset_scope_mut(&self, world: &mut World, f: Box<dyn FnOnce(&mut World, Option<&mut dyn Reflect>) + Send + Sync>) {
+		world.resource_scope(|world, mut assets: Mut<'_, Assets<M>>| {
+			let asset = assets.get_mut(self.id());
 			let asset: Option<&mut dyn Reflect> = match asset {
 				Some(m) => Some(m),
 				None => None,
 			};
 
-			modifier(asset);
+			f(world, asset);
+		});
+	}
+
+	fn asset_scope(&self, world: &mut World, f: Box<dyn FnOnce(&mut World, Option<&dyn Reflect>) + Send + Sync>) {
+		world.resource_scope(|world, assets: Mut<'_, Assets<M>>| {
+			let asset = assets.get(self.id());
+			let asset: Option<&dyn Reflect> = match asset {
+				Some(m) => Some(m),
+				None => None,
+			};
+
+			f(world, asset);
 		});
 	}
 }
@@ -95,6 +106,15 @@ impl Clone for Box<dyn ErasedMaterialHandle> {
 }
 
 impl dyn ErasedMaterialHandle {
+	#[allow(clippy::type_complexity)]
+	pub fn modify_with_commands(&self, commands: &mut Commands, f: Box<dyn FnOnce(&mut World, Option<&mut dyn Reflect>) + Send + Sync>) {
+		let handle = self.clone_erased();
+
+		commands.queue(move |world: &mut World| {
+			handle.asset_scope_mut(world, f);
+		});
+	}
+
 	/// Attempts to modify a single field in the material. Writes an error out if something fails.
 	pub fn modify_field_with_commands<T: Reflect + Typed + FromReflect + GetTypeRegistration>(
 		&self,
@@ -104,13 +124,13 @@ impl dyn ErasedMaterialHandle {
 	) {
 		self.modify_with_commands(
 			commands,
-			Box::new(move |material| {
+			Box::new(move |_, material| {
 				let Some(material) = material else { return };
 				let ReflectMut::Struct(s) = material.reflect_mut() else { return };
 
 				let Some(field) = s.field_mut(&field_name) else {
 					error!(
-						"Tried to animate field {field_name} of {}, but said field doesn't exist!",
+						"Tried to modify field {field_name} of {}, but said field doesn't exist!",
 						s.reflect_short_type_path()
 					);
 					return;
@@ -124,7 +144,7 @@ impl dyn ErasedMaterialHandle {
 
 				if let Err(err) = apply_result {
 					error!(
-						"Tried to animate field {field_name} of {}, but failed to apply: {err}",
+						"Tried to modify field {field_name} of {}, but failed to apply: {err}",
 						s.reflect_short_type_path()
 					);
 				}
