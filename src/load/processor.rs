@@ -1,9 +1,6 @@
-#[cfg(feature = "bevy_image")]
-use super::asset::set_image_loader_settings;
+use super::asset::{AssetSettingsModifiers, AssetSettingsTarget};
 use ::serde;
 use bevy::asset::AssetPath;
-#[cfg(feature = "bevy_image")]
-use bevy::image::ImageLoaderSettings;
 use bevy::reflect::{serde::*, *};
 use bevy::{asset::LoadContext, prelude::*};
 
@@ -59,23 +56,22 @@ impl MaterialProcessor for () {
 	}
 }
 
-/// Data used for [`MaterialProcessor`]
+/// Data used for [`MaterialProcessor`] when
 pub struct MaterialProcessorContext<'w, 'l> {
-	#[cfg(feature = "bevy_image")]
-	pub image_settings: ImageLoaderSettings,
+	pub asset_target: AssetSettingsTarget<'l>,
+	pub settings_modifiers: &'l AssetSettingsModifiers,
 	pub load_context: &'l mut LoadContext<'w>,
 }
 impl MaterialProcessorContext<'_, '_> {
-	/// Loads via `load_context` but passes image load settings through if the `bevy_image` feature is enabled.
-	pub fn load_with_image_settings<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
-		#[cfg(feature = "bevy_image")]
-		return self
-			.load_context
-			.loader()
-			.with_settings(set_image_loader_settings(&self.image_settings))
-			.load(path);
-		#[cfg(not(feature = "bevy_image"))]
-		return self.load_context.load(path);
+	/// Loads an asset, you should do this instead of going through `load_context` to respect asset settings overrides.
+	pub fn load<'b, A: Asset>(&mut self, path: impl Into<AssetPath<'b>>) -> Handle<A> {
+		let mut loader = self.load_context.loader();
+
+		if let Some(modifier) = self.settings_modifiers.settings_map.get(&self.asset_target) {
+			loader = modifier(loader);
+		}
+
+		loader.load(path)
 	}
 }
 

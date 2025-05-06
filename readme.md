@@ -206,6 +206,30 @@ MaterializePlugin::new(TomlMaterialDeserializer) // type: MaterializePlugin<...,
     .with_processor(MyProcessor) // type: MaterializePlugin<..., MyProcessor<AssetLoadingProcessor<()>>>
 ```
 
+## Asset Settings Modifiers
+
+Occasionally, specific fields should have overrides to their asset settings for usability.
+For example, non-color-maps in `StandardMaterial` need to be linear, not sRGB. This is part of the default modifiers in `GlobalAssetSettingsModifiers`.
+
+Here's how to register one yourself:
+
+```rust no_run
+use bevy::{prelude::*, image::{ImageLoaderSettings, ImageSampler}};
+use bevy_materialize::prelude::*;
+App::new()
+    .insert_generic_material_asset_settings_modifier(
+        AssetSettingsTarget::field::<StandardMaterial>("base_color_texture"),
+        |settings: &mut ImageLoaderSettings| settings.sampler = ImageSampler::nearest(),
+    )
+    // All base_color_textures loaded from StandardMaterial now use nearest neighbor filtering!
+;
+```
+
+Note that these stack, if you now insert one that also sets `base_color_texture`s to use a linear color space, it'll do both modifications!
+
+These modifiers are also the settings type on generic material asset loaders (the type is `AssetSettingsModifiers` to be specific),
+so you can modify specific settings per-load.
+
 # Supported Bevy Versions
 | Bevy | bevy_materialize |
 -|-

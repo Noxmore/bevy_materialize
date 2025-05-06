@@ -22,7 +22,10 @@ use bevy::prelude::*;
 #[cfg(feature = "bevy_pbr")]
 use generic_material::GenericMaterialApplied;
 use load::{
-	GenericMaterialLoader, asset::AssetLoadingProcessor, deserializer::MaterialDeserializer, processor::MaterialProcessor,
+	GenericMaterialLoader,
+	asset::{AssetLoadingProcessor, GlobalAssetSettingsModifiers},
+	deserializer::MaterialDeserializer,
+	processor::MaterialProcessor,
 	simple::SimpleGenericMaterialLoader,
 };
 use prelude::*;
@@ -47,19 +50,22 @@ impl<D: MaterialDeserializer, P: MaterialProcessor + Clone> Plugin for Materiali
 
 		let shorthands = GenericMaterialShorthands::default();
 		let property_registry = MaterialPropertyRegistry::default();
+		let global_settings = GlobalAssetSettingsModifiers::default();
 
 		#[rustfmt::skip]
 		app
 			.add_plugins(MaterializeMarkerPlugin)
 			.insert_resource(shorthands.clone())
 			.insert_resource(property_registry.clone())
+			.insert_resource(global_settings.clone())
 			.register_type::<GenericMaterial3d>()
 			.init_asset::<GenericMaterial>()
-			.register_generic_material_sub_asset_image_settings_passthrough::<GenericMaterial>()
+			.register_generic_material_sub_asset::<GenericMaterial>()
 			.register_asset_loader(GenericMaterialLoader {
 				type_registry,
 				shorthands,
 				property_registry,
+				global_settings,
 				deserializer: self.deserializer.clone(),
 				do_text_replacements: self.do_text_replacements,
 				processor: self.processor.clone(),
@@ -71,7 +77,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor + Clone> Plugin for Materiali
 		}
 
 		#[cfg(feature = "bevy_image")]
-		app.register_generic_material_sub_asset_image_settings_passthrough::<Image>();
+		app.register_generic_material_sub_asset::<Image>();
 
 		#[cfg(feature = "bevy_pbr")]
 		#[rustfmt::skip]

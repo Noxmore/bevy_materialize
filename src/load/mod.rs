@@ -5,6 +5,7 @@ pub mod processor;
 pub mod simple;
 
 mod error;
+use asset::{AssetSettingsModifiers, AssetSettingsTarget, GlobalAssetSettingsModifiers};
 pub use error::*;
 
 use std::ffi::OsStr;
@@ -13,8 +14,6 @@ use std::sync::Arc;
 
 use ::serde;
 use bevy::asset::AssetLoader;
-#[cfg(feature = "bevy_image")]
-use bevy::image::ImageLoaderSettings;
 use bevy::platform::collections::HashMap;
 use bevy::reflect::{serde::*, *};
 use bevy::tasks::ConditionalSendFuture;
@@ -35,6 +34,7 @@ pub struct GenericMaterialLoader<D: MaterialDeserializer, P: MaterialProcessor> 
 	pub type_registry: AppTypeRegistry,
 	pub shorthands: GenericMaterialShorthands,
 	pub property_registry: MaterialPropertyRegistry,
+	pub global_settings: GlobalAssetSettingsModifiers,
 	pub deserializer: Arc<D>,
 	pub do_text_replacements: bool,
 	pub processor: P,
@@ -56,16 +56,13 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> GenericMaterialLoader<D, P> 
 }
 impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMaterialLoader<D, P> {
 	type Asset = GenericMaterial;
-	#[cfg(feature = "bevy_image")]
-	type Settings = ImageLoaderSettings;
-	#[cfg(not(feature = "bevy_image"))]
-	type Settings = ();
+	type Settings = AssetSettingsModifiers;
 	type Error = GenericMaterialLoadError;
 
 	fn load(
 		&self,
 		reader: &mut dyn bevy::asset::io::Reader,
-		#[allow(unused)] settings: &Self::Settings,
+		settings: &Self::Settings,
 		#[allow(unused)] load_context: &mut LoadContext,
 	) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
 		Box::pin(async {
@@ -84,6 +81,12 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 			let parsed = apply_inheritance(self, load_context, parsed).await?;
 
 			assert!(parsed.inherits.is_none());
+
+			// Compute sub-asset settings modifiers for later use.
+			let mut settings_modifiers = (*self.global_settings.inner.read().unwrap()).clone();
+			for (target, modifier) in settings.settings_map.clone() {
+				settings_modifiers.insert_raw(target, modifier);
+			}
 
 			// MATERIAL
 
@@ -133,19 +136,41 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 
 				// Deserialize and process the parsed values into the struct.
 				if let Some(material) = parsed.material {
-					let mut processor = MaterialDeserializerProcessor {
-						ctx: MaterialProcessorContext {
-							load_context,
-							image_settings: settings.clone(),
-						},
-						material_processor: &self.processor,
-					};
+					let mut dynamic_struct = DynamicStruct::default();
+					let struct_info = registration.type_info().as_struct().unwrap(); // ErasedMaterial requires Struct
 
-					let data = TypedReflectDeserializer::with_processor(registration, &type_registry, &mut processor)
-						.deserialize(material)
-						.map_err(|err| GenericMaterialLoadError::Deserialize(Box::new(err)))?;
+					for (field_name, value) in material {
+						let Some(field_info) = struct_info.field(&field_name) else {
+							return Err(GenericMaterialLoadError::NoField {
+								type_name: struct_info.type_path(),
+								field_name,
+							});
+						};
 
-					mat.try_apply(data.as_ref())?;
+						let field_registration = type_registry.get(field_info.type_id()).unwrap(); // Fields are auto-registered.
+
+						let mut processor = MaterialDeserializerProcessor {
+							ctx: MaterialProcessorContext {
+								asset_target: AssetSettingsTarget::Field {
+									type_id: registration.type_id(),
+									field: &field_name,
+								},
+								settings_modifiers: &settings_modifiers,
+								load_context,
+							},
+							material_processor: &self.processor,
+						};
+
+						let data = TypedReflectDeserializer::with_processor(field_registration, &type_registry, &mut processor)
+							.deserialize(value)
+							.map_err(|err| {
+								GenericMaterialLoadError::InField(field_name.clone(), Box::new(GenericMaterialLoadError::Deserialize(Box::new(err))))
+							})?;
+
+						dynamic_struct.insert_boxed(field_name, data);
+					}
+
+					mat.try_apply(&dynamic_struct)?;
 				}
 
 				mat
@@ -159,16 +184,16 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 				let type_registry = self.type_registry.read();
 				let property_registry = self.property_registry.inner.read().unwrap();
 
-				let mut processor = MaterialDeserializerProcessor {
-					ctx: MaterialProcessorContext {
-						load_context,
-						#[cfg(feature = "bevy_image")]
-						image_settings: settings.clone(),
-					},
-					material_processor: &self.processor,
-				};
-
 				for (key, value) in parsed_properties {
+					let mut processor = MaterialDeserializerProcessor {
+						ctx: MaterialProcessorContext {
+							asset_target: AssetSettingsTarget::Property(&key),
+							settings_modifiers: &settings_modifiers,
+							load_context,
+						},
+						material_processor: &self.processor,
+					};
+
 					let Some(type_id) = property_registry.get(&key).copied() else {
 						return Err(GenericMaterialLoadError::PropertyNotRegistered(key));
 					};
@@ -215,7 +240,7 @@ struct ParsedGenericMaterial<Value: GenericValue> {
 	#[serde(rename = "type")]
 	ty: Option<String>,
 	#[cfg(feature = "bevy_pbr")]
-	material: Option<Value>,
+	material: Option<HashMap<String, Value>>,
 	properties: Option<HashMap<String, Value>>,
 }
 

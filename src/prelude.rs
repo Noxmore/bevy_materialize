@@ -7,6 +7,9 @@ pub use crate::{MaterializeAppExt, generic_material::ReflectGenericMaterial};
 pub use crate::{
 	MaterializePlugin,
 	generic_material::{GenericMaterial, GenericMaterial3d},
-	load::{asset::GenericMaterialSubAssetAppExt, deserializer::MaterialDeserializer},
+	load::{
+		asset::{AssetSettingsTarget, GenericMaterialSubAssetAppExt},
+		deserializer::MaterialDeserializer,
+	},
 	material_property::{MaterialProperty, MaterialPropertyAppExt},
 };

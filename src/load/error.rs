@@ -22,6 +22,8 @@ pub enum GenericMaterialLoadError {
 	WrongNumberEnumElements,
 	#[error("No property by the name of {0}")]
 	NoProperty(String),
+	#[error("No field by the name of {field_name} in type {type_name}")]
+	NoField { type_name: &'static str, field_name: String },
 	#[error("Type not registered: {0}")]
 	TypeNotRegistered(&'static str),
 	#[error("Property {0} found, but was not registered to any type. Use `App::register_material_property` to register it")]

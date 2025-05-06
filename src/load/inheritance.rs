@@ -78,7 +78,15 @@ pub(super) async fn apply_inheritance<D: MaterialDeserializer, P: MaterialProces
 		} else {
 			match (&mut final_material.material, sub_material.material) {
 				(Some(final_material_mat), Some(sub_material_mat)) => {
-					loader.deserializer.merge_value(final_material_mat, sub_material_mat);
+					// This is a HashMap, we we have to manually merge it.
+					for (key, sub_material_value) in sub_material_mat {
+						match final_material_mat.get_mut(&key) {
+							Some(final_material_value) => loader.deserializer.merge_value(final_material_value, sub_material_value),
+							None => {
+								final_material_mat.insert(key, sub_material_value);
+							}
+						}
+					}
 				}
 				(None, Some(sub_material_mat)) => final_material.material = Some(sub_material_mat),
 				_ => {}

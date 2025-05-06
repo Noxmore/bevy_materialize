@@ -175,6 +175,7 @@ impl MaterialAnimation for NextAnimation {
 	}
 }
 
+// TODO: images loaded by this don't respect asset settings modifiers!
 /// Allows different image [`fields`](Self::fields) to cycle a list of images at a specified [`fps`](Self::fps).
 #[derive(Reflect, Debug, Clone)]
 pub struct ImagesAnimation {

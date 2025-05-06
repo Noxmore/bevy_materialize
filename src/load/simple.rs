@@ -10,9 +10,6 @@ use std::convert::Infallible;
 
 use crate::generic_material::GenericMaterial;
 
-#[cfg(feature = "bevy_image")]
-use super::asset::set_image_loader_settings;
-
 /// Loads a [`GenericMaterial`] directly from an image file. By default it loads a [`StandardMaterial`], putting the image into its `base_color_texture` field, and setting `perceptual_roughness` set to 1.
 #[derive(Debug, Clone)]
 pub struct SimpleGenericMaterialLoader {
@@ -39,8 +36,9 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 			#[cfg(feature = "bevy_pbr")]
 			let path = load_context.asset_path().clone();
 
+			// TODO: Support asset settings modifiers.
 			#[cfg(feature = "bevy_pbr")]
-			let material = (self.material)(load_context.loader().with_settings(set_image_loader_settings(settings)).load(path));
+			let material = (self.material)(load_context.loader().load(path));
 
 			Ok(GenericMaterial {
 				#[cfg(feature = "bevy_pbr")]
