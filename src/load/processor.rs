@@ -5,13 +5,35 @@ use bevy::{asset::LoadContext, prelude::*};
 /// API wrapping Bevy's [`ReflectDeserializerProcessor`](https://docs.rs/bevy/latest/bevy/reflect/serde/trait.ReflectDeserializerProcessor.html).
 /// This allows you to modify data as it's being deserialized. For example, this system is used for loading assets, treating strings as paths.
 ///
-/// It's used much like Rust's iterator API, each processor having a child processor that is stored via generic. If you want to make your own, check out [`AssetLoadingProcessor`](crate::AssetLoadingProcessor) for a simple example of an implementation.
+/// If you want to make your own, check out [`AssetLoadingProcessor`](crate::AssetLoadingProcessor) for a simple example of an implementation.
+///
+/// Material processors are assembled as a type stack that terminates at `()` (unit), each processor having a child processor that is stored via generic.
+///
+/// For example:
+/// ```ignore
+/// Processor2<Processor1<()>>
+/// ```
+///
+/// It starts at the lowest in the stack, `()`, which is a no-op processor that has no child, and immediately gives the deserializer up to `Processor1`.
+/// Then as `Processor1` gets hold of the deserializer, it can decide to override the default deserialization
+/// and immediately return from the stack, or give the deserializer to `Processor2`, and so on.
+///
+/// If no processor overrides the deserialization, giving the deserializer back every time, then regular deserialization proceeds as normal.
+///
+/// Processors are preferably tuple structs like so
+/// ```
+/// # use bevy_materialize::load::processor::MaterialProcessor;
+/// struct MyMaterialProcessor<P: MaterialProcessor>(pub P);
+/// ```
+/// This makes the API for adding them to your `MaterializePlugin` super simple.
 pub trait MaterialProcessor: Clone + Send + Sync + 'static {
+	/// The type of processor this processor holds as a child that will hand the deserializer to this. Should be set from a generic in the struct.
 	type Child: MaterialProcessor;
 
+	/// Should **never** return [`None`] unless you want your processor to be a dead-end, which is what `()` is for.
 	fn child(&self) -> Option<&Self::Child>;
 
-	/// Passes through to [`ReflectDeserializerProcessor::try_deserialize`], see the documentation for that.
+	/// Passes through to [`ReflectDeserializerProcessor::try_deserialize`], see the documentation for that for details on how to use.
 	fn try_deserialize<'de, D: serde::Deserializer<'de>>(
 		&self,
 		ctx: &mut MaterialProcessorContext,
@@ -20,6 +42,7 @@ pub trait MaterialProcessor: Clone + Send + Sync + 'static {
 		deserializer: D,
 	) -> Result<Result<Box<dyn PartialReflect>, D>, D::Error>;
 
+	/// Recursively attempts to deserialize through child processors, see [`MaterialProcessor`] documentation for exactly *how* it does this.
 	fn try_deserialize_recursive<'de, D: serde::Deserializer<'de>>(
 		&self,
 		ctx: &mut MaterialProcessorContext,
@@ -38,6 +61,7 @@ pub trait MaterialProcessor: Clone + Send + Sync + 'static {
 	}
 }
 
+/// The root processor. Has no child, and immediately gives back its deserializer.
 impl MaterialProcessor for () {
 	type Child = Self;
 	fn child(&self) -> Option<&Self::Child> {
