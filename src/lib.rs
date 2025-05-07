@@ -37,7 +37,7 @@ pub struct MaterializePlugin<D: MaterialDeserializer, P: MaterialProcessor> {
 	pub animated_materials: bool,
 	// Whether to replace special patterns in text, such as replacing `${name}` with the name of the material loading. (Default: `true`)
 	pub do_text_replacements: bool,
-	/// Whether to automatically set sRGB images in places where they aren't supposed to be to linear.
+	/// Whether to automatically set maps in [`StandardMaterial`] that aren't supposed to be to sRGB to linear if necessary.
 	pub standard_material_color_space_fix: bool,
 	pub processor: P,
 }
@@ -138,7 +138,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> MaterializePlugin<D, P> {
 		}
 	}
 
-	/// Whether to automatically set sRGB images in places where they aren't supposed to be to linear.
+	/// Whether to automatically set maps in [`StandardMaterial`] that aren't supposed to be to sRGB to linear if necessary.
 	pub fn with_standard_material_color_space_fix(self, value: bool) -> Self {
 		Self {
 			standard_material_color_space_fix: value,
