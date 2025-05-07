@@ -11,6 +11,7 @@ pub trait MaterialProcessor: Clone + Send + Sync + 'static {
 
 	fn child(&self) -> Option<&Self::Child>;
 
+	/// Passes through to [`ReflectDeserializerProcessor::try_deserialize`], see the documentation for that.
 	fn try_deserialize<'de, D: serde::Deserializer<'de>>(
 		&self,
 		ctx: &mut MaterialProcessorContext,
