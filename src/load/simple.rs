@@ -2,16 +2,13 @@
 use crate::erased_material::ErasedMaterial;
 use bevy::asset::AssetLoader;
 #[cfg(feature = "bevy_image")]
-use bevy::image::{ImageLoader, ImageLoaderSettings};
+use bevy::image::ImageLoader;
 use bevy::platform::collections::HashMap;
 use bevy::tasks::ConditionalSendFuture;
 use bevy::{asset::LoadContext, prelude::*};
 use std::convert::Infallible;
 
 use crate::generic_material::GenericMaterial;
-
-#[cfg(feature = "bevy_image")]
-use super::asset::set_image_loader_settings;
 
 /// Loads a [`GenericMaterial`] directly from an image file. By default it loads a [`StandardMaterial`], putting the image into its `base_color_texture` field, and setting `perceptual_roughness` set to 1.
 #[derive(Debug, Clone)]
@@ -23,9 +20,6 @@ pub struct SimpleGenericMaterialLoader {
 }
 impl AssetLoader for SimpleGenericMaterialLoader {
 	type Asset = GenericMaterial;
-	#[cfg(feature = "bevy_image")]
-	type Settings = ImageLoaderSettings;
-	#[cfg(not(feature = "bevy_image"))]
 	type Settings = ();
 	type Error = Infallible;
 
@@ -40,7 +34,7 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 			let path = load_context.asset_path().clone();
 
 			#[cfg(feature = "bevy_pbr")]
-			let material = (self.material)(load_context.loader().with_settings(set_image_loader_settings(settings)).load(path));
+			let material = (self.material)(load_context.load(path));
 
 			Ok(GenericMaterial {
 				#[cfg(feature = "bevy_pbr")]

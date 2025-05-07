@@ -13,8 +13,6 @@ use std::sync::Arc;
 
 use ::serde;
 use bevy::asset::AssetLoader;
-#[cfg(feature = "bevy_image")]
-use bevy::image::ImageLoaderSettings;
 use bevy::platform::collections::HashMap;
 use bevy::reflect::{serde::*, *};
 use bevy::tasks::ConditionalSendFuture;
@@ -56,9 +54,6 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> GenericMaterialLoader<D, P> 
 }
 impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMaterialLoader<D, P> {
 	type Asset = GenericMaterial;
-	#[cfg(feature = "bevy_image")]
-	type Settings = ImageLoaderSettings;
-	#[cfg(not(feature = "bevy_image"))]
 	type Settings = ();
 	type Error = GenericMaterialLoadError;
 
@@ -134,10 +129,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 				// Deserialize and process the parsed values into the struct.
 				if let Some(material) = parsed.material {
 					let mut processor = MaterialDeserializerProcessor {
-						ctx: MaterialProcessorContext {
-							load_context,
-							image_settings: settings.clone(),
-						},
+						ctx: MaterialProcessorContext { load_context },
 						material_processor: &self.processor,
 					};
 
@@ -160,11 +152,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> AssetLoader for GenericMater
 				let property_registry = self.property_registry.inner.read().unwrap();
 
 				let mut processor = MaterialDeserializerProcessor {
-					ctx: MaterialProcessorContext {
-						load_context,
-						#[cfg(feature = "bevy_image")]
-						image_settings: settings.clone(),
-					},
+					ctx: MaterialProcessorContext { load_context },
 					material_processor: &self.processor,
 				};
 
