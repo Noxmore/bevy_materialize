@@ -206,6 +206,9 @@ MaterializePlugin::new(TomlMaterialDeserializer) // type: MaterializePlugin<...,
     .with_processor(MyProcessor) // type: MaterializePlugin<..., MyProcessor<AssetLoadingProcessor<()>>>
 ```
 
+## Other Utilities
+- By default, images in fields in `StandardMaterial` that want linear images will convert any sRGB images in them. This can be turned off with `MaterializePlugin::with_standard_material_color_space_fix`.
+
 # Supported Bevy Versions
 | Bevy | bevy_materialize |
 -|-
