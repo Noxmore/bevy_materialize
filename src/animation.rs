@@ -28,9 +28,9 @@ impl Plugin for AnimationPlugin {
 		;
 
 		#[cfg(feature = "bevy_pbr")]
-		app.add_systems(PostUpdate, Self::setup_animated_materials.before(crate::insert_generic_materials));
+		app.add_systems(PreUpdate, Self::setup_animated_materials.before(crate::insert_generic_materials));
 		#[cfg(not(feature = "bevy_pbr"))]
-		app.add_systems(PostUpdate, Self::setup_animated_materials);
+		app.add_systems(PreUpdate, Self::setup_animated_materials);
 	}
 }
 impl AnimationPlugin {
