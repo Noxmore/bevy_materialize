@@ -47,12 +47,12 @@ pub struct GenericMaterialApplied;
 #[cfg_attr(not(feature = "bevy_pbr"), derive(Default))]
 pub struct GenericMaterial {
 	#[cfg(feature = "bevy_pbr")]
-	pub handle: Box<dyn ErasedMaterialHandle>,
+	pub handle: ErasedMaterialHandle,
 	pub properties: HashMap<String, Box<dyn Reflect>>,
 }
 impl GenericMaterial {
 	#[cfg(feature = "bevy_pbr")]
-	pub fn new(handle: impl Into<Box<dyn ErasedMaterialHandle>>) -> Self {
+	pub fn new(handle: impl Into<ErasedMaterialHandle>) -> Self {
 		Self {
 			handle: handle.into(),
 			properties: HashMap::default(),

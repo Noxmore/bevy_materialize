@@ -111,9 +111,14 @@ impl AnimationPlugin {
 
 					for (field_name, frames) in &animation.fields {
 						let new_idx = animation.state.current_frame % frames.len();
-						generic_material
-							.handle
-							.modify_field_with_commands(&mut commands, field_name.clone(), frames[new_idx].clone());
+
+						let handle = generic_material.handle.clone();
+						let field_name = field_name.clone();
+						let new_frame = frames[new_idx].clone();
+
+						commands.queue(move |world: &mut World| {
+							handle.modify_field(world, field_name, new_frame);
+						});
 					}
 				}
 			}
