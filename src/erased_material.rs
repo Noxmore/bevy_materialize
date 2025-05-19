@@ -8,17 +8,17 @@ use bevy::{
 
 /// Type-erased [`Material`].
 pub trait ErasedMaterial: Send + Sync + Reflect + Struct {
-	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> ErasedMaterialHandle;
-	fn add_asset(&self, asset_server: &AssetServer) -> ErasedMaterialHandle;
+	fn add_labeled_asset(self: Box<Self>, load_context: &mut LoadContext, label: String) -> ErasedMaterialHandle;
+	fn add_asset(self: Box<Self>, asset_server: &AssetServer) -> ErasedMaterialHandle;
 	fn clone_erased(&self) -> Box<dyn ErasedMaterial>;
 }
 impl<M: Material + Reflect + Struct + Clone> ErasedMaterial for M {
-	fn add_labeled_asset(&self, load_context: &mut LoadContext, label: String) -> ErasedMaterialHandle {
-		load_context.add_labeled_asset(label, self.clone()).into()
+	fn add_labeled_asset(self: Box<Self>, load_context: &mut LoadContext, label: String) -> ErasedMaterialHandle {
+		load_context.add_labeled_asset(label, *self).into()
 	}
 
-	fn add_asset(&self, asset_server: &AssetServer) -> ErasedMaterialHandle {
-		asset_server.add(self.clone()).into()
+	fn add_asset(self: Box<Self>, asset_server: &AssetServer) -> ErasedMaterialHandle {
+		asset_server.add(*self).into()
 	}
 
 	fn clone_erased(&self) -> Box<dyn ErasedMaterial> {
