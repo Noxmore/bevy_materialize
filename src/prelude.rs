@@ -1,5 +1,7 @@
 #[cfg(feature = "json")]
 pub use crate::load::deserializer::JsonMaterialDeserializer;
+#[cfg(feature = "ron")]
+pub use crate::load::deserializer::RonMaterialDeserializer;
 #[cfg(feature = "toml")]
 pub use crate::load::deserializer::TomlMaterialDeserializer;
 #[cfg(feature = "bevy_pbr")]

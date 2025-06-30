@@ -1,16 +1,15 @@
 (
-    // RON is inconvenient because i can't get the type of `material` here, so having this exterior type field is necessary.
-    type: Some("StandardMaterial"),
+	// RON is inconvenient because i can't get the type of `material` here, so having this exterior type field is necessary.
+	type: Some("StandardMaterial"),
 
-    material: StandardMaterial(
-        base_color_texture: Some("example.png"),
-        emissive: [0.5, 0.2, 0.1, 1.0],
-        alpha_mode: Mask(0.5),
-    ),
+	material: Some(StandardMaterial(
+		base_color_texture: Some("example.png"),
+		alpha_mode: Mask(0.5),
+	)),
 
-    properties: {
-        "visibility": "Visible",
-        "collide": true,
-        "sounds": "wood",
-    }
+	properties: Some({
+		"visibility": Visible,
+		"collision": true,
+		"sounds": "wood",
+	})
 )

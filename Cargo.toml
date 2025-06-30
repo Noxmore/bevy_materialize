@@ -17,6 +17,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", optional = true }
 thiserror = "2"
 toml = { version = "0.8", optional = true }
+ron = { version = "0.10", optional = true }
 
 [dev-dependencies]
 bevy = { version = "0.16", features = ["bevy_winit", "png"] }
@@ -24,7 +25,11 @@ smol = "2"
 
 [[example]]
 name = "example_json"
-required-features = ["json"]
+required-features = ["json", "bevy_pbr"]
+
+[[example]]
+name = "example_ron"
+required-features = ["ron", "bevy_pbr"]
 
 [[example]]
 name = "custom_material"
@@ -36,3 +41,4 @@ bevy_pbr = ["bevy/bevy_pbr", "bevy_image"]
 bevy_image = ["bevy/bevy_image"]
 json = ["dep:serde_json"]
 toml = ["dep:toml"]
+ron = ["dep:ron"]

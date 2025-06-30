@@ -80,3 +80,63 @@ impl MaterialDeserializer for JsonMaterialDeserializer {
 		}
 	}
 }
+
+#[cfg(feature = "ron")]
+#[derive(Debug, Clone, Default)]
+pub struct RonMaterialDeserializer;
+#[cfg(feature = "ron")]
+impl MaterialDeserializer for RonMaterialDeserializer {
+	type Value = ron::Value;
+	type Error = RonDeserializeError;
+	const EXTENSIONS: &[&str] = &["ron", "mat", "mat.ron", "material", "material.ron"];
+
+	fn deserialize<T: DeserializeOwned>(&self, input: &[u8]) -> Result<T, Self::Error> {
+		let s = str::from_utf8(input).map_err(serde::de::Error::custom)?;
+		ron::from_str(s).map_err(RonDeserializeError)
+	}
+
+	fn merge_value(&self, value: &mut Self::Value, other: Self::Value) {
+		match (value, other) {
+			(ron::Value::Map(value), ron::Value::Map(other)) => {
+				for (key, other_value) in other {
+					match value.get_mut(&key) {
+						Some(value) => self.merge_value(value, other_value),
+						None => {
+							value.insert(key, other_value);
+						}
+					}
+				}
+			}
+			(value, other) => *value = other,
+		}
+	}
+}
+/// Hack wrapper because SpannedError doesn't implement serde::de::Error
+#[cfg(feature = "ron")]
+pub struct RonDeserializeError(ron::error::SpannedError);
+#[cfg(feature = "ron")]
+impl std::fmt::Debug for RonDeserializeError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		self.0.fmt(f)
+	}
+}
+#[cfg(feature = "ron")]
+impl std::fmt::Display for RonDeserializeError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		self.0.fmt(f)
+	}
+}
+#[cfg(feature = "ron")]
+impl std::error::Error for RonDeserializeError {}
+#[cfg(feature = "ron")]
+impl serde::de::Error for RonDeserializeError {
+	fn custom<T>(msg: T) -> Self
+	where
+		T: std::fmt::Display,
+	{
+		RonDeserializeError(ron::error::SpannedError {
+			code: ron::Error::custom(msg),
+			position: ron::de::Position { col: 0, line: 0 },
+		})
+	}
+}
