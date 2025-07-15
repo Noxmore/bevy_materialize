@@ -1,7 +1,7 @@
 use std::fmt;
 
 use bevy::{
-	asset::{LoadContext, UntypedAssetId},
+	asset::{AssetPath, LoadContext, UntypedAssetId},
 	prelude::*,
 	reflect::{GetTypeRegistration, ReflectMut, Typed},
 };
@@ -65,6 +65,11 @@ impl ErasedMaterialHandle {
 	#[inline]
 	pub fn id(&self) -> UntypedAssetId {
 		self.inner.id()
+	}
+
+	#[inline]
+	pub fn path(&self) -> Option<&AssetPath<'static>> {
+		self.inner.path()
 	}
 
 	/// Inserts the appropriate [`MeshMaterial3d`] on an entity.
