@@ -9,17 +9,17 @@ readme = "readme.md"
 categories = ["game-development"]
 
 [dependencies]
-bevy = { version = "0.16", default-features = false, features = [
+bevy = { path = "/d/_dev/bevy", default-features = false, features = [
 	"bevy_asset",
 	"bevy_log",
 ] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", optional = true }
 thiserror = "2"
-toml = { version = "0.8", optional = true }
+toml = { version = "0.9", optional = true }
 
 [dev-dependencies]
-bevy = { version = "0.16", features = ["bevy_winit", "png"] }
+bevy = { path = "/d/_dev/bevy", features = ["bevy_winit", "png"] }
 smol = "2"
 
 [[example]]
