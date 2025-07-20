@@ -23,9 +23,7 @@ fn main() {
 			MaterialPlugin::<QuakeSkyMaterial>::default(),
 			MaterialPlugin::<QuakeLiquidMaterial>::default(),
 		))
-		.register_generic_material::<QuakeLiquidMaterial>()
-		// Otherwise we'd have to type the full type path with generics in the file.
-		.register_generic_material_shorthand::<QuakeLiquidMaterial>("QuakeLiquidMaterial")
+		.register_extended_generic_material::<StandardMaterial, QuakeLiquidMaterialExt>("QuakeLiquidMaterial")
 		.register_generic_material::<QuakeSkyMaterial>()
 		.insert_resource(AmbientLight {
 			brightness: 1000.,
@@ -64,8 +62,9 @@ pub struct QuakeLiquidMaterialExt {
 	#[uniform(100)]
 	pub cycles: f32,
 }
-impl Default for QuakeLiquidMaterialExt {
-	fn default() -> Self {
+// We don't need to use `FromWorld` here, this is to make sure `register_extended_generic_material` works correctly.
+impl FromWorld for QuakeLiquidMaterialExt {
+	fn from_world(_world: &mut World) -> Self {
 		Self {
 			magnitude: 0.1,
 			cycles: std::f32::consts::PI,
@@ -132,8 +131,7 @@ fn load_custom_materials() {
 	app
 		.init_asset::<QuakeSkyMaterial>()
 		.init_asset::<QuakeLiquidMaterial>()
-		.register_generic_material::<QuakeLiquidMaterial>()
-		.register_generic_material_shorthand::<QuakeLiquidMaterial>("QuakeLiquidMaterial")
+		.register_extended_generic_material::<StandardMaterial, QuakeLiquidMaterialExt>("QuakeLiquidMaterial")
 		.register_generic_material::<QuakeSkyMaterial>()
 	;
 
