@@ -9,7 +9,7 @@ readme = "readme.md"
 categories = ["game-development"]
 
 [dependencies]
-bevy = { path = "/d/_dev/bevy", default-features = false, features = [
+bevy = { git = "https://github.com/bevyengine/bevy.git", default-features = false, features = [
 	"bevy_asset",
 	"bevy_log",
 ] }
@@ -19,7 +19,7 @@ thiserror = "2"
 toml = { version = "0.9", optional = true }
 
 [dev-dependencies]
-bevy = { path = "/d/_dev/bevy", features = ["bevy_winit", "png"] }
+bevy = { git = "https://github.com/bevyengine/bevy.git", features = ["bevy_winit", "png"] }
 smol = "2"
 
 [[example]]
