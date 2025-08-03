@@ -15,7 +15,10 @@ use std::any::TypeId;
 use std::sync::Arc;
 
 #[cfg(feature = "bevy_pbr")]
-use bevy::reflect::GetTypeRegistration;
+use bevy::{
+	pbr::{ExtendedMaterial, MaterialExtension},
+	reflect::{GetTypeRegistration, Typed},
+};
 use color_space_fix::ColorSpaceFixPlugin;
 use generic_material::GenericMaterialShorthands;
 use material_property::MaterialPropertyRegistry;
@@ -236,8 +239,22 @@ pub trait MaterializeAppExt {
 	///
 	/// This also registers the type if it isn't already registered.
 	///
-	/// It's also worth noting that [`from_world`](FromWorld::from_world) is only called once when the material is registered, then that value is cloned each time a new instance is required.
+	/// NOTES:
+	/// - [`from_world`](FromWorld::from_world) is only called once when the material is registered, then that value is cloned each time a new instance is required.
+	/// - If you're registering an [`ExtendedMaterial`] that requires [`FromWorld`], you should use [`register_extended_generic_material(...)`](MaterializeAppExt::register_extended_generic_material).
 	fn register_generic_material<M: Material + Reflect + Struct + FromWorld + GetTypeRegistration>(&mut self) -> &mut Self;
+
+	/// Registers an [`ExtendedMaterial`] using [`FromWorld`], and sets a shorthand to it.
+	///
+	/// This function is necessary if either the base or extension requires [`FromWorld`], as [`ExtendedMaterial`] has a [`Default`] impl that would conflict with a [`FromWorld`] impl.
+	/// This is also why the base and extension are separate generic parameters.
+	fn register_extended_generic_material<
+		Base: Material + FromReflect + Typed + Struct + FromWorld + GetTypeRegistration,
+		Ext: MaterialExtension + FromReflect + Typed + Struct + FromWorld + GetTypeRegistration,
+	>(
+		&mut self,
+		shorthand: impl Into<String>,
+	) -> &mut Self;
 
 	/// Same as [`register_generic_material`](MaterializeAppExt::register_generic_material), but with a provided default value.
 	///
@@ -268,6 +285,19 @@ impl MaterializeAppExt for App {
 	fn register_generic_material<M: Material + Reflect + Struct + FromWorld + GetTypeRegistration>(&mut self) -> &mut Self {
 		let default_value = M::from_world(self.world_mut());
 		self.register_generic_material_with_default(default_value)
+	}
+
+	fn register_extended_generic_material<
+		Base: Material + FromReflect + Typed + Struct + FromWorld + GetTypeRegistration,
+		Ext: MaterialExtension + FromReflect + Typed + Struct + FromWorld + GetTypeRegistration,
+	>(
+		&mut self,
+		shorthand: impl Into<String>,
+	) -> &mut Self {
+		let base = Base::from_world(self.world_mut());
+		let extension = Ext::from_world(self.world_mut());
+		self.register_generic_material_with_default(ExtendedMaterial { base, extension })
+			.register_generic_material_shorthand::<ExtendedMaterial<Base, Ext>>(shorthand)
 	}
 
 	fn register_generic_material_with_default<M: Material + Reflect + Struct + GetTypeRegistration>(&mut self, default_value: M) -> &mut Self {
