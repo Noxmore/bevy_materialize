@@ -40,7 +40,7 @@ impl AnimationPlugin {
 		generic_materials: Res<Assets<GenericMaterial>>,
 		time: Res<Time>,
 
-		mut asset_events: EventReader<AssetEvent<GenericMaterial>>,
+		mut asset_events: MessageReader<AssetEvent<GenericMaterial>>,
 		mut failed_reading: Local<HashSet<AssetId<GenericMaterial>>>,
 	) {
 		for event in asset_events.read() {
@@ -88,38 +88,38 @@ impl AnimationPlugin {
 
 		for (id, animations) in &mut animated_materials.states {
 			// Material switching
-			if let Some(animation) = &mut animations.next {
-				if animation.state.next_frame_time <= now {
-					animation.advance_frame(now);
+			if let Some(animation) = &mut animations.next
+				&& animation.state.next_frame_time <= now
+			{
+				animation.advance_frame(now);
 
-					for (entity, generic_material_3d) in &query {
-						if generic_material_3d.id() != *id {
-							continue;
-						}
-
-						commands.entity(entity).insert(GenericMaterial3d(animation.material.clone()));
+				for (entity, generic_material_3d) in &query {
+					if generic_material_3d.id() != *id {
+						continue;
 					}
+
+					commands.entity(entity).insert(GenericMaterial3d(animation.material.clone()));
 				}
 			}
 
 			// Image switching
 			#[cfg(feature = "bevy_pbr")]
-			if let Some(animation) = &mut animations.images {
-				if animation.state.next_frame_time <= now {
-					animation.advance_frame(now);
-					let Some(generic_material) = generic_materials.get(*id) else { continue };
+			if let Some(animation) = &mut animations.images
+				&& animation.state.next_frame_time <= now
+			{
+				animation.advance_frame(now);
+				let Some(generic_material) = generic_materials.get(*id) else { continue };
 
-					for (field_name, frames) in &animation.fields {
-						let new_idx = animation.state.current_frame % frames.len();
+				for (field_name, frames) in &animation.fields {
+					let new_idx = animation.state.current_frame % frames.len();
 
-						let handle = generic_material.handle.clone();
-						let field_name = field_name.clone();
-						let new_frame = frames[new_idx].clone();
+					let handle = generic_material.handle.clone();
+					let field_name = field_name.clone();
+					let new_frame = frames[new_idx].clone();
 
-						commands.queue(move |world: &mut World| {
-							handle.modify_field(world, field_name, new_frame);
-						});
-					}
+					commands.queue(move |world: &mut World| {
+						handle.modify_field(world, field_name, new_frame);
+					});
 				}
 			}
 		}

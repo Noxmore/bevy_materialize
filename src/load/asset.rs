@@ -90,7 +90,7 @@ pub fn relative_asset_path(relative_to: &AssetPath<'static>, path: &str) -> Resu
 	let root_pattern = ['/', '\\'];
 
 	if path.starts_with(root_pattern) {
-		let mut asset_path = AssetPath::from(path.trim_start_matches(root_pattern)).into_owned();
+		let mut asset_path = AssetPath::try_parse(path.trim_start_matches(root_pattern))?.into_owned();
 		if let AssetSourceId::Default = asset_path.source() {
 			asset_path = asset_path.with_source(relative_to.source().clone_owned());
 		}

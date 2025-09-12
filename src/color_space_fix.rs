@@ -13,8 +13,8 @@ impl ColorSpaceFixPlugin {
 	pub fn standard_material(
 		materials: Res<Assets<StandardMaterial>>,
 		mut images: ResMut<Assets<Image>>,
-		mut material_events: EventReader<AssetEvent<StandardMaterial>>,
-		mut image_events: EventReader<AssetEvent<Image>>,
+		mut material_events: MessageReader<AssetEvent<StandardMaterial>>,
+		mut image_events: MessageReader<AssetEvent<Image>>,
 	) {
 		if material_events.is_empty() && image_events.is_empty() {
 			return;
