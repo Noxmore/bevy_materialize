@@ -200,7 +200,7 @@ pub fn insert_generic_materials(
 #[cfg(feature = "bevy_pbr")]
 pub fn reload_generic_materials(
 	mut commands: Commands,
-	mut asset_events: EventReader<AssetEvent<GenericMaterial>>,
+	mut asset_events: MessageReader<AssetEvent<GenericMaterial>>,
 	query: Query<(Entity, &GenericMaterial3d), With<GenericMaterialApplied>>,
 ) {
 	for event in asset_events.read() {

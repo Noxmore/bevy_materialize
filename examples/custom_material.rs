@@ -72,7 +72,7 @@ impl FromWorld for QuakeLiquidMaterialExt {
 	}
 }
 impl MaterialExtension for QuakeLiquidMaterialExt {
-	fn fragment_shader() -> bevy::render::render_resource::ShaderRef {
+	fn fragment_shader() -> bevy::shader::ShaderRef {
 		"shaders/quake_liquid.wgsl".into()
 	}
 }
@@ -114,7 +114,7 @@ impl Default for QuakeSkyMaterial {
 	}
 }
 impl Material for QuakeSkyMaterial {
-	fn fragment_shader() -> bevy::render::render_resource::ShaderRef {
+	fn fragment_shader() -> bevy::shader::ShaderRef {
 		"shaders/quake_sky.wgsl".into()
 	}
 

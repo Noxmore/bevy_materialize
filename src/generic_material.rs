@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use bevy::{platform::collections::HashMap, prelude::*, reflect::TypeRegistration};
 
 #[cfg(feature = "bevy_pbr")]
-use bevy::ecs::{component::HookContext, world::DeferredWorld};
+use bevy::ecs::{lifecycle::HookContext, world::DeferredWorld};
 
 #[cfg(feature = "bevy_pbr")]
 use crate::erased_material::{ErasedMaterial, ErasedMaterialHandle};
