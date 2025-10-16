@@ -179,7 +179,7 @@ metallic_roughness_texture = "${name}_mr.png"
 normal_map_texture = "${name}_normal.png"
 depth_map = "${name}_depth.png"
 ```
-`#{name}` is a special pattern that gets replaced to the name of the material loaded. (This functionality can be turned off from the plugin)
+`${name}` is a special pattern that gets replaced to the name of the material loaded. (This functionality can be turned off from the plugin)
 
 Now you can rewrite your `example.toml` into
 ```toml
