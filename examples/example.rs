@@ -13,7 +13,7 @@ fn main() {
 		.add_plugins(MaterializePlugin::new(TomlMaterialDeserializer))
 		.register_material_property(GenericMaterial::COLLISION)
 		.register_material_property(GenericMaterial::SOUNDS)
-		.insert_resource(AmbientLight {
+		.insert_resource(GlobalAmbientLight {
 			brightness: 1000.,
 			..default()
 		})

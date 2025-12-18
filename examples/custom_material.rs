@@ -25,7 +25,7 @@ fn main() {
 		))
 		.register_extended_generic_material::<StandardMaterial, QuakeLiquidMaterialExt>("QuakeLiquidMaterial")
 		.register_generic_material::<QuakeSkyMaterial>()
-		.insert_resource(AmbientLight {
+		.insert_resource(GlobalAmbientLight {
 			brightness: 1000.,
 			..default()
 		})

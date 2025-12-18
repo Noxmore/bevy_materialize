@@ -40,7 +40,7 @@ pub(super) async fn apply_inheritance<D: MaterialDeserializer, P: MaterialProces
 	application_queue.push(sub_material);
 
 	while let Some(inherits) = &application_queue.last().unwrap().inherits {
-		let path = relative_asset_path(load_context.asset_path(), inherits).map_err(io::Error::other)?;
+		let path = relative_asset_path(load_context.path(), inherits).map_err(io::Error::other)?;
 
 		application_queue.push(
 			read_path(loader, load_context, path)

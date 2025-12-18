@@ -4,7 +4,7 @@ use serde::de::DeserializeOwned;
 use super::*;
 
 /// Main trait for file format implementation of generic materials. See [`TomlMaterialDeserializer`] and [`JsonMaterialDeserializer`] for built-in/example implementations.
-pub trait MaterialDeserializer: Send + Sync + 'static {
+pub trait MaterialDeserializer: TypePath + Send + Sync + 'static {
 	type Value: GenericValue + DeserializeOwned;
 	type Error: serde::de::Error + Send + Sync;
 	/// The asset loader's file extensions.
@@ -20,7 +20,7 @@ pub trait MaterialDeserializer: Send + Sync + 'static {
 }
 
 #[cfg(feature = "toml")]
-#[derive(Debug, Clone, Default)]
+#[derive(TypePath, Debug, Clone, Default)]
 pub struct TomlMaterialDeserializer;
 #[cfg(feature = "toml")]
 impl MaterialDeserializer for TomlMaterialDeserializer {
@@ -51,7 +51,7 @@ impl MaterialDeserializer for TomlMaterialDeserializer {
 }
 
 #[cfg(feature = "json")]
-#[derive(Debug, Clone, Default)]
+#[derive(TypePath, Debug, Clone, Default)]
 pub struct JsonMaterialDeserializer;
 #[cfg(feature = "json")]
 impl MaterialDeserializer for JsonMaterialDeserializer {

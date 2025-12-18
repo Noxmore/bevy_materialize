@@ -10,7 +10,7 @@ use serde::Deserialize;
 use super::processor::{MaterialProcessor, MaterialProcessorContext};
 
 /// Material processor that loads assets from paths.
-#[derive(Clone)]
+#[derive(TypePath, Clone)]
 pub struct AssetLoadingProcessor<P: MaterialProcessor>(pub P);
 impl<P: MaterialProcessor> MaterialProcessor for AssetLoadingProcessor<P> {
 	type Child = P;
@@ -28,7 +28,7 @@ impl<P: MaterialProcessor> MaterialProcessor for AssetLoadingProcessor<P> {
 		if let Some(loader) = registration.data::<ReflectGenericMaterialSubAsset>() {
 			let path = String::deserialize(deserializer)?;
 
-			let path = relative_asset_path(ctx.load_context.asset_path(), &path).map_err(serde::de::Error::custom)?;
+			let path = relative_asset_path(ctx.load_context.path(), &path).map_err(serde::de::Error::custom)?;
 
 			return Ok(Ok(loader.load(ctx, path)));
 		}

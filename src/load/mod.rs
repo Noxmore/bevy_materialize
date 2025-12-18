@@ -29,6 +29,7 @@ use crate::generic_material::ReflectGenericMaterial;
 use serde::de::DeserializeSeed;
 
 /// The main [`GenericMaterial`] asset loader. Deserializes the file using `D`, and processes the parsed data into concrete types with the help of `P`.
+#[derive(TypePath)]
 pub struct GenericMaterialLoader<D: MaterialDeserializer, P: MaterialProcessor> {
 	pub type_registry: AppTypeRegistry,
 	pub shorthands: GenericMaterialShorthands,
@@ -45,7 +46,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> GenericMaterialLoader<D, P> 
 			Err(err) => return err.into_bytes(),
 		};
 
-		if let Some(file_name) = load_context.path().with_extension("").file_name().and_then(OsStr::to_str) {
+		if let Some(file_name) = load_context.path().path().with_extension("").file_name().and_then(OsStr::to_str) {
 			s = s.replace("${name}", file_name);
 		}
 

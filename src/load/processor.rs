@@ -26,7 +26,7 @@ use bevy::{asset::LoadContext, prelude::*};
 /// struct MyMaterialProcessor<P: MaterialProcessor>(pub P);
 /// ```
 /// This makes the API for adding them to your `MaterializePlugin` super simple.
-pub trait MaterialProcessor: Clone + Send + Sync + 'static {
+pub trait MaterialProcessor: TypePath + Clone + Send + Sync + 'static {
 	/// The type of processor this processor holds as a child that will hand the deserializer to this. Should be set from a generic in the struct.
 	type Child: MaterialProcessor;
 

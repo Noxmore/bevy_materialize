@@ -11,7 +11,7 @@ use std::convert::Infallible;
 use crate::generic_material::GenericMaterial;
 
 /// Loads a [`GenericMaterial`] directly from an image file. By default it loads a [`StandardMaterial`], putting the image into its `base_color_texture` field, and setting `perceptual_roughness` set to 1.
-#[derive(Debug, Clone)]
+#[derive(TypePath, Debug, Clone)]
 pub struct SimpleGenericMaterialLoader {
 	/// A function that provides the underlying material given the loaded image. Default is a [`StandardMaterial`] with `perceptual_roughness` set to 1.
 	#[cfg(feature = "bevy_pbr")]
@@ -31,7 +31,7 @@ impl AssetLoader for SimpleGenericMaterialLoader {
 	) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
 		Box::pin(async move {
 			#[cfg(feature = "bevy_pbr")]
-			let path = load_context.asset_path().clone();
+			let path = load_context.path().clone();
 
 			#[cfg(feature = "bevy_pbr")]
 			let material = (self.material)(load_context.load(path));
