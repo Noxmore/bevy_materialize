@@ -9,7 +9,7 @@ readme = "readme.md"
 categories = ["game-development"]
 
 [dependencies]
-bevy = { version = "0.18.0-rc", default-features = false, features = [
+bevy = { version = "0.18", default-features = false, features = [
 	"bevy_asset",
 	"bevy_log",
 ] }
@@ -19,7 +19,7 @@ thiserror = "2"
 toml = { version = "0.9", optional = true }
 
 [dev-dependencies]
-bevy = { version = "0.18.0-rc", features = ["bevy_winit", "png"] }
+bevy = { version = "0.18", features = ["bevy_winit", "png"] }
 smol = "2"
 
 [[example]]
