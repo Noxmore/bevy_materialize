@@ -1,7 +1,7 @@
 [package]
 name = "bevy_materialize"
 description = "Load, store, and apply type-erased materials in Bevy"
-version = "0.9.0-dev"
+version = "0.9.0"
 edition = "2024"
 repository = "https://github.com/Noxmore/bevy_materialize"
 license = "MIT OR Apache-2.0"
