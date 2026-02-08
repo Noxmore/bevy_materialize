@@ -212,7 +212,7 @@ MaterializePlugin::new(TomlMaterialDeserializer) // type: MaterializePlugin<...,
 # Supported Bevy Versions
 | Bevy | bevy_materialize |
 |------|------------------|
-| 0.18 | 0.9              |
+| 0.18 | 0.9-0.10         |
 | 0.17 | 0.8              |
 | 0.16 | 0.5-0.7          |
 | 0.15 | 0.1-0.4          |
