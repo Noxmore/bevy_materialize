@@ -34,7 +34,7 @@ use prelude::*;
 
 pub struct MaterializePlugin<D: MaterialDeserializer, P: MaterialProcessor> {
 	pub deserializer: Arc<D>,
-	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
+	/// Registers a [`GenericMaterial`] loader that loads directly from images. WARNING: This will cause conflicts if you try to load an image file without specifying what type you want to load.
 	pub simple_loader: Option<SimpleGenericMaterialLoader>,
 	/// Whether to add [`AnimationPlugin`](animation::AnimationPlugin), animating materials with the [`ANIMATION`](GenericMaterial::ANIMATION) property. (Default: `true`)
 	pub animated_materials: bool,
@@ -109,7 +109,7 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> MaterializePlugin<D, P> {
 	pub fn new_with_processor(deserializer: D, processor: P) -> Self {
 		Self {
 			deserializer: Arc::new(deserializer),
-			simple_loader: Some(default()),
+			simple_loader: None,
 			animated_materials: true,
 			do_text_replacements: true,
 			standard_material_color_space_fix: true,
@@ -117,10 +117,10 @@ impl<D: MaterialDeserializer, P: MaterialProcessor> MaterializePlugin<D, P> {
 		}
 	}
 
-	/// If [`None`], doesn't register [`SimpleGenericMaterialLoader`].
-	pub fn with_simple_loader(self, loader: Option<SimpleGenericMaterialLoader>) -> Self {
+	/// Registers a [`GenericMaterial`] loader that loads directly from images. WARNING: This will cause conflicts if you try to load an image file without specifying what type you want to load.
+	pub fn with_simple_loader(self, loader: SimpleGenericMaterialLoader) -> Self {
 		Self {
-			simple_loader: loader,
+			simple_loader: Some(loader),
 			..self
 		}
 	}
