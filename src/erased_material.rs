@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
 use bevy::{
 	asset::{AssetPath, LoadContext, UntypedAssetId},
@@ -113,7 +113,13 @@ impl ErasedMaterialHandle {
 	}
 
 	/// Attempts to modify a single field in the material. Writes an error out if something fails.
-	pub fn modify_field<T: Reflect + Typed + FromReflect + GetTypeRegistration>(&self, world: &mut World, field_name: String, value: T) {
+	pub fn modify_field<T: Reflect + Typed + FromReflect + GetTypeRegistration>(
+		&self,
+		world: &mut World,
+		field_name: impl Into<Cow<'static, str>>,
+		value: T,
+	) {
+		let field_name = field_name.into();
 		self.asset_scope_mut(
 			world,
 			Box::new(move |_, material| {
