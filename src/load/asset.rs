@@ -97,6 +97,6 @@ pub fn relative_asset_path(relative_to: &AssetPath<'static>, path: &str) -> Resu
 
 		Ok(asset_path)
 	} else {
-		parent.resolve(path)
+		Ok(parent.resolve(&AssetPath::try_parse(path)?))
 	}
 }

@@ -233,10 +233,10 @@ fn load_toml() {
 	let asset_server = app.world().resource::<AssetServer>();
 
 	smol::block_on(async {
-		asset_server.load_untyped_async("materials/animated.toml").await.unwrap();
+		asset_server.load_builder().load_untyped_async("materials/animated.toml").await.unwrap();
 		// Custom materials require special scaffolding in the associated example, and so the test is there.
-		asset_server.load_untyped_async("materials/example.material.toml").await.unwrap();
-		asset_server.load_untyped_async("materials/sub-material.toml").await.unwrap();
+		asset_server.load_builder().load_untyped_async("materials/example.material.toml").await.unwrap();
+		asset_server.load_builder().load_untyped_async("materials/sub-material.toml").await.unwrap();
 	});
 }
 
@@ -247,6 +247,6 @@ fn load_json() {
 	let asset_server = app.world().resource::<AssetServer>();
 
 	smol::block_on(async {
-		asset_server.load_untyped_async("materials/example.material.json").await.unwrap();
+		asset_server.load_builder().load_untyped_async("materials/example.material.json").await.unwrap();
 	});
 }

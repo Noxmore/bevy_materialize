@@ -179,7 +179,7 @@ impl ErasedMaterialHandleVTable {
 				world.resource_scope(|world, mut assets: Mut<'_, Assets<M>>| {
 					let asset = assets.get_mut(id.typed_debug_checked());
 					let asset: Option<&mut dyn Reflect> = match asset {
-						Some(m) => Some(m),
+						Some(m) => Some(m.into_inner_untracked()),
 						None => None,
 					};
 

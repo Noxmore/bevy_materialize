@@ -28,7 +28,7 @@ impl ColorSpaceFixPlugin {
 					$(if let Some(image_handle) = &material.$field {
 						if let Some(image) = images.get(image_handle) {
 							if image.texture_descriptor.format.is_srgb() {
-								if let Some(image) = images.get_mut(image_handle) {
+								if let Some(mut image) = images.get_mut(image_handle) {
 									image.texture_descriptor.format = image.texture_descriptor.format.remove_srgb_suffix();
 								}
 							}

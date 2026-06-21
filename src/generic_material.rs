@@ -16,12 +16,12 @@ use crate::{material_property::GetPropertyError, prelude::MaterialProperty};
 ///
 /// When removing or replacing this component, the inserted [`MeshMaterial3d`] will be removed.
 #[derive(Component, Reflect, Debug, Clone, PartialEq, Eq, Default, Deref, DerefMut)]
-#[cfg_attr(feature = "bevy_pbr", component(on_replace = Self::on_replace))]
+#[cfg_attr(feature = "bevy_pbr", component(on_discard = Self::on_discard))]
 #[reflect(Component, Default)]
 pub struct GenericMaterial3d(pub Handle<GenericMaterial>);
 impl GenericMaterial3d {
 	#[cfg(feature = "bevy_pbr")]
-	fn on_replace(mut world: DeferredWorld, ctx: HookContext) {
+	fn on_discard(mut world: DeferredWorld, ctx: HookContext) {
 		let generic_material_handle = &world.entity(ctx.entity).get::<Self>().unwrap().0;
 		let Some(generic_material) = world.resource::<Assets<GenericMaterial>>().get(generic_material_handle) else { return };
 		let material_handle = generic_material.handle.clone();
