@@ -104,6 +104,8 @@ impl ErasedMaterialHandle {
 	///
 	/// Passes the world through to the function to allow for mutable world access while having access to the material.
 	///
+	/// Because there currently isn't an `UntypedAssetMut`, the asset will be marked as changed even if you don't modify it.
+	///
 	/// If you don't need mutable access to the material, use [`asset_scope(...)`](Self::asset_scope).
 	#[inline]
 	pub fn asset_scope_mut(&self, world: &mut World, f: Box<dyn FnOnce(&mut World, Option<&mut dyn Reflect>) + Send + Sync>) {
@@ -179,7 +181,7 @@ impl ErasedMaterialHandleVTable {
 				world.resource_scope(|world, mut assets: Mut<'_, Assets<M>>| {
 					let asset = assets.get_mut(id.typed_debug_checked());
 					let asset: Option<&mut dyn Reflect> = match asset {
-						Some(m) => Some(m.into_inner_untracked()),
+						Some(m) => Some(m.into_inner()),
 						None => None,
 					};
 
