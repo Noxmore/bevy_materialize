@@ -138,7 +138,15 @@ fn load_custom_materials() {
 	let asset_server = app.world().resource::<AssetServer>();
 
 	smol::block_on(async {
-		asset_server.load_untyped_async("materials/custom_material.toml").await.unwrap();
-		asset_server.load_untyped_async("materials/extended_material.toml").await.unwrap();
+		asset_server
+			.load_builder()
+			.load_untyped_async("materials/custom_material.toml")
+			.await
+			.unwrap();
+		asset_server
+			.load_builder()
+			.load_untyped_async("materials/extended_material.toml")
+			.await
+			.unwrap();
 	});
 }
