@@ -1,0 +1,15 @@
+type = "StandardMaterial" # default option but here for clarity
+
+# Please note that these are 1k textures. Higher resolutions are definitely possible, but are not necessary to demonstrate the features here.
+
+[material]
+base_color_texture = "dark_rock_diffuse.png"
+occlusion_texture = "dark_rock_orm.png"
+metallic_roughness_texture = "dark_rock_orm.png"
+normal_map_texture = "dark_rock_normal.png"
+depth_map = "dark_rock_depth.png"
+
+# the higher this is the more accurate the visual
+max_parallax_layer_count = 64.0
+# per bevy docs: Default is 0.1, anything over that value may look distorted. Lower values lessen the effect.
+parallax_depth_scale = 0.1

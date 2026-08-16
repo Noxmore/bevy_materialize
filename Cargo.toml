@@ -30,6 +30,10 @@ required-features = ["json"]
 name = "custom_material"
 required-features = ["toml", "bevy_pbr"]
 
+[[example]]
+name = "depth_mapping"
+required-features = ["toml", "bevy_pbr"]
+
 [features]
 default = ["bevy_pbr", "toml"]
 bevy_pbr = ["bevy/bevy_pbr", "bevy_image"]
