@@ -73,7 +73,7 @@ impl FromWorld for QuakeLiquidMaterialExt {
 }
 impl MaterialExtension for QuakeLiquidMaterialExt {
 	fn fragment_shader() -> bevy::shader::ShaderRef {
-		"shaders/quake_liquid.wgsl".into()
+		"shaders/quake_liquid.wesl".into()
 	}
 }
 
@@ -115,7 +115,7 @@ impl Default for QuakeSkyMaterial {
 }
 impl Material for QuakeSkyMaterial {
 	fn fragment_shader() -> bevy::shader::ShaderRef {
-		"shaders/quake_sky.wgsl".into()
+		"shaders/quake_sky.wesl".into()
 	}
 
 	fn alpha_mode(&self) -> AlphaMode {

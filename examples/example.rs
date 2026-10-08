@@ -10,7 +10,7 @@ impl MyMaterialProperties for GenericMaterial {}
 fn main() {
 	App::new()
 		.add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
-		.add_plugins(MaterializePlugin::new(TomlMaterialDeserializer))
+		.add_plugins(MaterializePlugin::new(TomlMaterialDeserializer).with_simple_loader(default()))
 		.register_material_property(GenericMaterial::COLLISION)
 		.register_material_property(GenericMaterial::SOUNDS)
 		.insert_resource(GlobalAmbientLight {
