@@ -6,13 +6,13 @@ import bevy_pbr::render::{
 
 @if(PREPASS_PIPELINE)
 import bevy_pbr::{
-    prepass::io::{VertexOutput, FragmentOutput},
-    deferred::functions::deferred_output,
+	prepass::io::{VertexOutput, FragmentOutput},
+	deferred::functions::deferred_output,
 };
 @else
 import bevy_pbr::render::{
-    forward_io::{VertexOutput, FragmentOutput},
-    pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
+	forward_io::{VertexOutput, FragmentOutput},
+	pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
 };
 
 struct LiquidMaterial {
@@ -34,19 +34,19 @@ fn fragment(
 
 	pbr_input.material.base_color = alpha_discard(
 		pbr_input.material.flags,
-        pbr_input.material.alpha_cutoff,
-        pbr_input.material.base_color,
-    );
+		pbr_input.material.alpha_cutoff,
+		pbr_input.material.base_color,
+	);
 
-    var out: FragmentOutput;
-    @if(PREPASS_PIPELINE) {
-        out = deferred_output(in, pbr_input);
-    } @else {
-        out.color = apply_pbr_lighting(pbr_input);
-        out.color = vec4<f32>(vec4<u32>(out.color * f32(my_extended_material.quantize_steps))) / f32(my_extended_material.quantize_steps);
-        out.color = main_pass_post_lighting_processing(pbr_input, out.color);
-        out.color = out.color * 2.0;
-    }
+	var out: FragmentOutput;
+	@if(PREPASS_PIPELINE) {
+		out = deferred_output(in, pbr_input);
+	} @else {
+		out.color = apply_pbr_lighting(pbr_input);
+		out.color = vec4<f32>(vec4<u32>(out.color * f32(my_extended_material.quantize_steps))) / f32(my_extended_material.quantize_steps);
+		out.color = main_pass_post_lighting_processing(pbr_input, out.color);
+		out.color = out.color * 2.0;
+	}
 
-    return out;
+	return out;
 }
